@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -14,27 +13,21 @@
 
 <!-- Иконки приложения. Чёрный фон с синим логотипом «SP» — это и иконка
      для вкладки браузера, и иконка для домашнего экрана iOS, и иконка PWA. -->
-
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23000000'/><text x='50%25' y='58%25' dominant-baseline='middle' text-anchor='middle' font-family='system-ui' font-weight='800' font-size='13' fill='%230A84FF'>SP</text></svg>">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%23000000'/><text x='50%25' y='58%25' dominant-baseline='middle' text-anchor='middle' font-family='system-ui' font-weight='800' font-size='72' fill='%230A84FF'>SP</text></svg>">
 
 <!-- Web App Manifest — встроен в HTML через data URI, чтобы не нужен был отдельный файл.
      Это позволяет приложению устанавливаться как PWA на iOS и Android. -->
-
 <link rel="manifest" href='data:application/manifest+json;charset=utf-8,{"name":"SOZYKIN%20%D0%9F%D0%BB%D0%B0%D0%B3%D0%B8%D0%B0%D1%82","short_name":"SOZYKIN","start_url":".","display":"standalone","background_color":"%23000000","theme_color":"%23000000","description":"%D0%9F%D1%80%D0%BE%D0%B2%D0%B5%D1%80%D0%BA%D0%B0%20%D0%BE%D1%80%D0%B8%D0%B3%D0%B8%D0%BD%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE%D1%81%D1%82%D0%B8","orientation":"portrait","icons":[{"src":"data:image/svg%2Bxml;charset=utf-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%20512%20512%27%3E%3Crect%20width%3D%27512%27%20height%3D%27512%27%20rx%3D%27110%27%20fill%3D%27%23000000%27%2F%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2758%25%27%20dominant-baseline%3D%27middle%27%20text-anchor%3D%27middle%27%20font-family%3D%27system-ui%27%20font-weight%3D%27800%27%20font-size%3D%27200%27%20fill%3D%27%230A84FF%27%3ESP%3C%2Ftext%3E%3C%2Fsvg%3E","sizes":"512x512","type":"image/svg+xml"}]}'>
 
 <!-- Inter — шрифт уровня премиум-SaaS (используется в Linear, Vercel, Stripe).
      JetBrains Mono — для цифр и кода, имеет идеальные табличные пропорции. -->
-
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
 <!-- Библиотеки парсинга документов. PDF.js извлекает текст из PDF,
      mammoth — из DOCX. Подгружаются с CDN Cloudflare, доступного в РФ. -->
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-
 <script>if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 
 <style>
@@ -1278,7 +1271,6 @@ details[open] summary::after{
 }
 @media(max-width:380px){.hero-t{font-size:30px}}
 </style>
-
 </head>
 <body>
 
@@ -1303,7 +1295,6 @@ details[open] summary::after{
 </footer>
 
 <!-- Контейнер для toast-уведомлений. Должен быть в body, чтобы быть выше всего. -->
-
 <div class="toast-host" id="toastHost"></div>
 
 <!-- Командная палитра удалена в версии 7.2 для упрощения мобильного интерфейса.
@@ -3079,7 +3070,6 @@ function renderHome(){
     <span id="wc" class="m" style="color:var(--dim)">${wordCount} слов · ${S.text.length} симв.</span>
   </div>
   <textarea id="ta" placeholder="Вставьте текст сюда или загрузите файл выше...">${escapeHtml(S.text)}</textarea>
-
 </div>
 
 <div style="margin:14px 0">
@@ -3099,32 +3089,29 @@ function renderHome(){
       ).join('')}
     </div>
 
-```
-${S.apiProvider !== 'none' ? `
-  <label>API-ключ</label>
-  <div class="keyrow">
-    <input type="password" id="ak" placeholder="${S.apiProvider === 'groq' ? 'gsk_...' : S.apiProvider === 'openrouter' ? 'sk-or-v1-...' : 'xxx...'}" value="${escapeHtml(S.apiKey)}">
-    <button class="keybtn ${S.apiKey ? 'ok' : ''}" id="keyTest">${S.apiKey ? '✓' : 'Сохр'}</button>
-  </div>
-  <div class="hint">${PROVIDERS[S.apiProvider]?.keyHint || ''}</div>
-  <div class="hint" style="margin-top:8px;color:var(--acc);font-weight:500">${PROVIDERS[S.apiProvider]?.note || ''}</div>
-  ${S.apiProvider === 'groq' ? `
-    <div class="hint" style="margin-top:8px">💡 Получить ключ Groq за 5 минут: <a href="https://console.groq.com" target="_blank">console.groq.com</a> → войти через Google → API Keys → Create</div>
-  ` : ''}
-` : `
-  <div class="hint">
-    Без API-ключа работает <b style="color:var(--txt2)">локальный анализ</b> по 7 метрикам (burstiness, MATTR, маркеры ИИ, шаблонность, канцелярит, em-dash, Flesch-Kincaid).
-    Подключение API даёт <b style="color:var(--acc)">углублённый анализ</b> через LLM и Fast-DetectGPT для точной детекции ИИ-контента.
-  </div>
-`}
-```
-
+    ${S.apiProvider !== 'none' ? `
+      <label>API-ключ</label>
+      <div class="keyrow">
+        <input type="password" id="ak" placeholder="${S.apiProvider === 'groq' ? 'gsk_...' : S.apiProvider === 'openrouter' ? 'sk-or-v1-...' : 'xxx...'}" value="${escapeHtml(S.apiKey)}">
+        <button class="keybtn ${S.apiKey ? 'ok' : ''}" id="keyTest">${S.apiKey ? '✓' : 'Сохр'}</button>
+      </div>
+      <div class="hint">${PROVIDERS[S.apiProvider]?.keyHint || ''}</div>
+      <div class="hint" style="margin-top:8px;color:var(--acc);font-weight:500">${PROVIDERS[S.apiProvider]?.note || ''}</div>
+      ${S.apiProvider === 'groq' ? `
+        <div class="hint" style="margin-top:8px">💡 Получить ключ Groq за 5 минут: <a href="https://console.groq.com" target="_blank">console.groq.com</a> → войти через Google → API Keys → Create</div>
+      ` : ''}
+    ` : `
+      <div class="hint">
+        Без API-ключа работает <b style="color:var(--txt2)">локальный анализ</b> по 7 метрикам (burstiness, MATTR, маркеры ИИ, шаблонность, канцелярит, em-dash, Flesch-Kincaid).
+        Подключение API даёт <b style="color:var(--acc)">углублённый анализ</b> через LLM и Fast-DetectGPT для точной детекции ИИ-контента.
+      </div>
+    `}
   </div>
 </details>
 
 <div id="eb"></div>
 
-<button class=“btn btn-go” id=“go” ${S.text.trim() ? ‘’ : ‘disabled’}>🔍 Проверить оригинальность</button>
+<button class="btn btn-go" id="go" ${S.text.trim() ? '' : 'disabled'}>🔍 Проверить оригинальность</button>
 
 <div class="card" style="margin-top:18px">
   <div class="card-t">ℹ Как это работает</div>
@@ -3137,81 +3124,81 @@ ${S.apiProvider !== 'none' ? `
 </div>
 `;
 
-// ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
-const dz = $(’#dz’), fi = $(’#fi’), ta = $(’#ta’), em = $(’#em’), go = $(’#go’);
+  // ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
+  const dz = $('#dz'), fi = $('#fi'), ta = $('#ta'), em = $('#em'), go = $('#go');
 
-// Drop-зона: тап открывает диалог выбора файла
-dz.onclick = () => fi.click();
-// Визуальная обратная связь при касании
-dz.ontouchstart = () => dz.classList.add(‘on’);
-dz.ontouchend = () => setTimeout(() => dz.classList.remove(‘on’), 150);
-// Drag & drop на десктопе
-dz.ondragover = e => { e.preventDefault(); dz.classList.add(‘on’); };
-dz.ondragleave = () => dz.classList.remove(‘on’);
-dz.ondrop = async e => {
-e.preventDefault();
-dz.classList.remove(‘on’);
-const file = e.dataTransfer.files?.[0];
-if(file) await loadFile(file);
-};
+  // Drop-зона: тап открывает диалог выбора файла
+  dz.onclick = () => fi.click();
+  // Визуальная обратная связь при касании
+  dz.ontouchstart = () => dz.classList.add('on');
+  dz.ontouchend = () => setTimeout(() => dz.classList.remove('on'), 150);
+  // Drag & drop на десктопе
+  dz.ondragover = e => { e.preventDefault(); dz.classList.add('on'); };
+  dz.ondragleave = () => dz.classList.remove('on');
+  dz.ondrop = async e => {
+    e.preventDefault();
+    dz.classList.remove('on');
+    const file = e.dataTransfer.files?.[0];
+    if(file) await loadFile(file);
+  };
 
-// Выбор файла через диалог
-fi.onchange = async e => {
-const file = e.target.files?.[0];
-if(file) await loadFile(file);
-};
+  // Выбор файла через диалог
+  fi.onchange = async e => {
+    const file = e.target.files?.[0];
+    if(file) await loadFile(file);
+  };
 
-// Текстовое поле — обновление состояния и счётчика слов с дебаунсом
-let saveTimer = null;
-ta.oninput = function(){
-S.text = this.value;
-go.disabled = !S.text.trim();
-const w = S.text.trim() ? S.text.trim().split(/\s+/).length : 0;
-const wcEl = $(’#wc’);
-if(wcEl) wcEl.textContent = `${w} слов · ${S.text.length} симв.`;
-// Автосохранение черновика с задержкой 1 секунда
-if(saveTimer) clearTimeout(saveTimer);
-saveTimer = setTimeout(saveDraft, 1000);
-};
+  // Текстовое поле — обновление состояния и счётчика слов с дебаунсом
+  let saveTimer = null;
+  ta.oninput = function(){
+    S.text = this.value;
+    go.disabled = !S.text.trim();
+    const w = S.text.trim() ? S.text.trim().split(/\s+/).length : 0;
+    const wcEl = $('#wc');
+    if(wcEl) wcEl.textContent = `${w} слов · ${S.text.length} симв.`;
+    // Автосохранение черновика с задержкой 1 секунда
+    if(saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveDraft, 1000);
+  };
 
-// Email — сохранение в localStorage
-em.oninput = function(){
-S.email = this.value;
-saveState();
-};
+  // Email — сохранение в localStorage
+  em.oninput = function(){
+    S.email = this.value;
+    saveState();
+  };
 
-// Кнопки выбора AI-провайдера
-$$(’.prov-b’).forEach(btn => {
-btn.onclick = () => {
-S.apiProvider = btn.dataset.p;
-saveState();
-renderHome();
-};
-});
+  // Кнопки выбора AI-провайдера
+  $$('.prov-b').forEach(btn => {
+    btn.onclick = () => {
+      S.apiProvider = btn.dataset.p;
+      saveState();
+      renderHome();
+    };
+  });
 
-// Поле API-ключа
-const apiKeyInput = $(’#ak’);
-if(apiKeyInput){
-apiKeyInput.oninput = function(){
-S.apiKey = this.value.trim();
-saveState();
-const keyBtn = $(’#keyTest’);
-if(keyBtn){
-keyBtn.classList.toggle(‘ok’, !!S.apiKey);
-keyBtn.textContent = S.apiKey ? ‘✓’ : ‘Сохр’;
-}
-};
-const keyBtn = $(’#keyTest’);
-if(keyBtn) keyBtn.onclick = () => {
-saveState();
-keyBtn.classList.add(‘ok’);
-keyBtn.textContent = ‘✓’;
-toast(‘API-ключ сохранён’, ‘success’);
-};
-}
+  // Поле API-ключа
+  const apiKeyInput = $('#ak');
+  if(apiKeyInput){
+    apiKeyInput.oninput = function(){
+      S.apiKey = this.value.trim();
+      saveState();
+      const keyBtn = $('#keyTest');
+      if(keyBtn){
+        keyBtn.classList.toggle('ok', !!S.apiKey);
+        keyBtn.textContent = S.apiKey ? '✓' : 'Сохр';
+      }
+    };
+    const keyBtn = $('#keyTest');
+    if(keyBtn) keyBtn.onclick = () => {
+      saveState();
+      keyBtn.classList.add('ok');
+      keyBtn.textContent = '✓';
+      toast('API-ключ сохранён', 'success');
+    };
+  }
 
-// Главная кнопка — запуск анализа
-go.onclick = doRun;
+  // Главная кнопка — запуск анализа
+  go.onclick = doRun;
 }
 
 // =============================================================================
@@ -3219,32 +3206,32 @@ go.onclick = doRun;
 // =============================================================================
 
 async function loadFile(file){
-S.fn = file.name;
-const dzI = $(’#dzI’), dzT = $(’#dzT’);
-if(dzI) dzI.textContent = ‘⏳’;
-if(dzT){
-dzT.textContent = ‘Извлечение текста…’;
-dzT.style.color = ‘var(–acc)’;
-dzT.style.animation = ‘pulse 1.2s infinite’;
-}
+  S.fn = file.name;
+  const dzI = $('#dzI'), dzT = $('#dzT');
+  if(dzI) dzI.textContent = '⏳';
+  if(dzT){
+    dzT.textContent = 'Извлечение текста...';
+    dzT.style.color = 'var(--acc)';
+    dzT.style.animation = 'pulse 1.2s infinite';
+  }
 
-try{
-const text = await readFile(file);
-// Нормализация: убираем CRLF, неразрывные пробелы и лишние пробелы по краям
-S.text = text.replace(/\r\n/g, ‘\n’).replace(/\u00a0/g, ’ ‘).trim();
-toast(`Файл "${file.name}" загружен (${S.text.length} символов)`, ‘success’);
-renderHome();
-}catch(e){
-if(dzI) dzI.textContent = ‘❌’;
-if(dzT){
-dzT.textContent = e.message;
-dzT.style.color = ‘var(–red)’;
-dzT.style.animation = ‘’;
-}
-const errorBox = $(’#eb’);
-if(errorBox) errorBox.innerHTML = `<div class="err">⚠ ${escapeHtml(e.message)}</div>`;
-toast(e.message, ‘error’, 5000);
-}
+  try{
+    const text = await readFile(file);
+    // Нормализация: убираем CRLF, неразрывные пробелы и лишние пробелы по краям
+    S.text = text.replace(/\r\n/g, '\n').replace(/\u00a0/g, ' ').trim();
+    toast(`Файл "${file.name}" загружен (${S.text.length} символов)`, 'success');
+    renderHome();
+  }catch(e){
+    if(dzI) dzI.textContent = '❌';
+    if(dzT){
+      dzT.textContent = e.message;
+      dzT.style.color = 'var(--red)';
+      dzT.style.animation = '';
+    }
+    const errorBox = $('#eb');
+    if(errorBox) errorBox.innerHTML = `<div class="err">⚠ ${escapeHtml(e.message)}</div>`;
+    toast(e.message, 'error', 5000);
+  }
 }
 
 // =============================================================================
@@ -3253,23 +3240,22 @@ toast(e.message, ‘error’, 5000);
 // =============================================================================
 
 async function doRun(){
-// Валидация: текст должен быть, и его должно быть достаточно
-if(!S.text.trim()){
-$(’#eb’).innerHTML = ‘<div class="err">⚠ Вставьте текст или загрузите файл</div>’;
-toast(‘Сначала загрузите документ’, ‘warn’);
-return;
-}
-const wordCount = S.text.trim().split(/\s+/).length;
-if(wordCount < 30){
-$(’#eb’).innerHTML = `<div class="err">⚠ Минимум 30 слов для анализа (сейчас ${wordCount})</div>`;
-toast(`Слишком короткий текст (${wordCount} слов)`, ‘warn’);
-return;
-}
+  // Валидация: текст должен быть, и его должно быть достаточно
+  if(!S.text.trim()){
+    $('#eb').innerHTML = '<div class="err">⚠ Вставьте текст или загрузите файл</div>';
+    toast('Сначала загрузите документ', 'warn');
+    return;
+  }
+  const wordCount = S.text.trim().split(/\s+/).length;
+  if(wordCount < 30){
+    $('#eb').innerHTML = `<div class="err">⚠ Минимум 30 слов для анализа (сейчас ${wordCount})</div>`;
+    toast(`Слишком короткий текст (${wordCount} слов)`, 'warn');
+    return;
+  }
 
-// Отрисовываем экран загрузки. Прогресс-бар будет обновляться по таймеру,
-// а текст сообщений — по мере выполнения шагов анализа.
-app.innerHTML = `
-
+  // Отрисовываем экран загрузки. Прогресс-бар будет обновляться по таймеру,
+  // а текст сообщений — по мере выполнения шагов анализа.
+  app.innerHTML = `
 <div class="load">
   <div class="spinner"></div>
   <div class="load-t">Анализ документа...</div>
@@ -3278,84 +3264,81 @@ app.innerHTML = `
   <div class="pct m" id="pp">0%</div>
 </div>`;
 
-// Псевдо-прогресс: пока выполняются асинхронные операции, бар плавно растёт.
-// Это улучшает восприятие — пользователь видит движение даже между шагами.
-const steps = [
-[5, ‘Нормализация текста…’],
-[12, ‘Токенизация и лемматизация…’],
-[22, ‘Подсчёт метрик: burstiness, TTR, MATTR…’],
-[32, ‘Детекция ИИ-маркеров и канцелярита…’],
-[42, ‘Сканирование подозрительных символов…’],
-[55, ‘Поиск в академических базах…’],
-[70, S.apiProvider !== ‘none’ && S.apiKey
-? `Углублённый анализ (${PROVIDERS[S.apiProvider].name})...`
-: ‘Формирование отчёта…’],
-[85, ‘Fast-DetectGPT — стилометрия…’],
-[95, ‘Финализация результатов…’]
-];
-let stepIndex = 0;
-const progressInterval = setInterval(() => {
-if(stepIndex < steps.length){
-const [percent, message] = steps[stepIndex];
-const pb = $(’#pb’), pl = $(’#pl’), pp = $(’#pp’);
-if(pb) pb.style.width = percent + ‘%’;
-if(pl) pl.textContent = message;
-if(pp) pp.textContent = percent + ‘%’;
-stepIndex++;
-}
-}, 900);
+  // Псевдо-прогресс: пока выполняются асинхронные операции, бар плавно растёт.
+  // Это улучшает восприятие — пользователь видит движение даже между шагами.
+  const steps = [
+    [5, 'Нормализация текста...'],
+    [12, 'Токенизация и лемматизация...'],
+    [22, 'Подсчёт метрик: burstiness, TTR, MATTR...'],
+    [32, 'Детекция ИИ-маркеров и канцелярита...'],
+    [42, 'Сканирование подозрительных символов...'],
+    [55, 'Поиск в академических базах...'],
+    [70, S.apiProvider !== 'none' && S.apiKey
+      ? `Углублённый анализ (${PROVIDERS[S.apiProvider].name})...`
+      : 'Формирование отчёта...'],
+    [85, 'Fast-DetectGPT — стилометрия...'],
+    [95, 'Финализация результатов...']
+  ];
+  let stepIndex = 0;
+  const progressInterval = setInterval(() => {
+    if(stepIndex < steps.length){
+      const [percent, message] = steps[stepIndex];
+      const pb = $('#pb'), pl = $('#pl'), pp = $('#pp');
+      if(pb) pb.style.width = percent + '%';
+      if(pl) pl.textContent = message;
+      if(pp) pp.textContent = percent + '%';
+      stepIndex++;
+    }
+  }, 900);
 
-try{
-// Передаём в runAnalysis колбэк для обновления текста сообщения.
-// Это позволяет анализу самому решать, что показать пользователю в данный момент.
-S.res = await runAnalysis(S.text, (message) => {
-const pl = $(’#pl’);
-if(pl) pl.textContent = message;
-});
-
-```
-clearInterval(progressInterval);
-
-// Заполняем прогресс-бар до 100%
-const pb = $('#pb'), pp = $('#pp');
-if(pb) pb.style.width = '100%';
-if(pp) pp.textContent = '100%';
-
-S.tab = 'overview';
-
-// Автоматическое скачивание полного отчёта через короткую задержку.
-// Задержка нужна для того, чтобы пользователь увидел 100% прогресса.
-setTimeout(() => {
   try{
-    downloadFile(reportHTML(S.res, S.fn, false), S.fn, 'Полный');
-    toast('Отчёт скачан', 'success');
-  }catch(e){ console.error(e); }
-}, 400);
+    // Передаём в runAnalysis колбэк для обновления текста сообщения.
+    // Это позволяет анализу самому решать, что показать пользователю в данный момент.
+    S.res = await runAnalysis(S.text, (message) => {
+      const pl = $('#pl');
+      if(pl) pl.textContent = message;
+    });
 
-// Автоматическая отправка email, если адрес был указан
-if(S.email && S.email.includes('@')){
-  setTimeout(() => {
-    try{ emailReport(S.email, S.res, S.fn); }catch(e){}
-  }, 1000);
-}
+    clearInterval(progressInterval);
 
-// Очищаем черновик после успешного анализа
-clearDraft();
+    // Заполняем прогресс-бар до 100%
+    const pb = $('#pb'), pp = $('#pp');
+    if(pb) pb.style.width = '100%';
+    if(pp) pp.textContent = '100%';
 
-// Переходим к экрану результатов с небольшой задержкой
-setTimeout(renderResult, 600);
-```
+    S.tab = 'overview';
 
-}catch(e){
-clearInterval(progressInterval);
-console.error(‘Analysis failed:’, e);
-renderHome();
-setTimeout(() => {
-const errorBox = $(’#eb’);
-if(errorBox) errorBox.innerHTML = `<div class="err">⚠ Ошибка анализа: ${escapeHtml(e.message)}</div>`;
-toast(`Ошибка: ${e.message}`, ‘error’, 5000);
-}, 100);
-}
+    // Автоматическое скачивание полного отчёта через короткую задержку.
+    // Задержка нужна для того, чтобы пользователь увидел 100% прогресса.
+    setTimeout(() => {
+      try{
+        downloadFile(reportHTML(S.res, S.fn, false), S.fn, 'Полный');
+        toast('Отчёт скачан', 'success');
+      }catch(e){ console.error(e); }
+    }, 400);
+
+    // Автоматическая отправка email, если адрес был указан
+    if(S.email && S.email.includes('@')){
+      setTimeout(() => {
+        try{ emailReport(S.email, S.res, S.fn); }catch(e){}
+      }, 1000);
+    }
+
+    // Очищаем черновик после успешного анализа
+    clearDraft();
+
+    // Переходим к экрану результатов с небольшой задержкой
+    setTimeout(renderResult, 600);
+  }catch(e){
+    clearInterval(progressInterval);
+    console.error('Analysis failed:', e);
+    renderHome();
+    setTimeout(() => {
+      const errorBox = $('#eb');
+      if(errorBox) errorBox.innerHTML = `<div class="err">⚠ Ошибка анализа: ${escapeHtml(e.message)}</div>`;
+      toast(`Ошибка: ${e.message}`, 'error', 5000);
+    }, 100);
+  }
 }
 
 // =============================================================================
@@ -3364,34 +3347,31 @@ toast(`Ошибка: ${e.message}`, ‘error’, 5000);
 // =============================================================================
 
 function renderResult(){
-const r = S.res;
-if(!r){ renderHome(); return; }
+  const r = S.res;
+  if(!r){ renderHome(); return; }
 
-// Конфигурация вкладок: id для switch’а и подпись для UI
-const tabs = [
-{ id: ‘overview’, l: ‘📊 Обзор’ },
-{ id: ‘fragments’, l: ‘📝 Фрагменты’ },
-{ id: ‘text’, l: ‘🎨 Текст’ },
-{ id: ‘sources’, l: ‘🔗 Источники’ },
-{ id: ‘ai’, l: ‘🤖 ИИ-анализ’ }
-];
+  // Конфигурация вкладок: id для switch'а и подпись для UI
+  const tabs = [
+    { id: 'overview', l: '📊 Обзор' },
+    { id: 'fragments', l: '📝 Фрагменты' },
+    { id: 'text', l: '🎨 Текст' },
+    { id: 'sources', l: '🔗 Источники' },
+    { id: 'ai', l: '🤖 ИИ-анализ' }
+  ];
 
-// Содержимое активной вкладки. Каждая вкладка генерирует свой блок content.
-let content = ‘’;
+  // Содержимое активной вкладки. Каждая вкладка генерирует свой блок content.
+  let content = '';
 
-// ВКЛАДКА «ОБЗОР» — главная сводка результатов. Здесь пользователь видит
-// целостную картину: проценты, диаграмму, информацию о документе.
-if(S.tab === ‘overview’){
-// Цвет центральной цифры в донате зависит от уровня оригинальности.
-// Это даёт мгновенную визуальную обратную связь без необходимости читать число.
-const origColor = r.originality_percent >= 70 ? ‘var(–ap-orig)’ :
-r.originality_percent >= 50 ? ‘var(–ap-suspicious)’ :
-‘var(–ap-borrow)’;
+  // ВКЛАДКА «ОБЗОР» — главная сводка результатов. Здесь пользователь видит
+  // целостную картину: проценты, диаграмму, информацию о документе.
+  if(S.tab === 'overview'){
+    // Цвет центральной цифры в донате зависит от уровня оригинальности.
+    // Это даёт мгновенную визуальную обратную связь без необходимости читать число.
+    const origColor = r.originality_percent >= 70 ? 'var(--ap-orig)' :
+                      r.originality_percent >= 50 ? 'var(--ap-suspicious)' :
+                                                    'var(--ap-borrow)';
 
-```
-content = `
-```
-
+    content = `
 <div class="stats">
   ${mkStat('Оригинальность', (r.originality_percent || 0).toFixed(1) + '%', 'var(--ap-orig)', 'check')}
   ${mkStat('Заимствования', (r.borrowed_percent || 0).toFixed(1) + '%', 'var(--ap-borrow)', 'warn')}
@@ -3400,7 +3380,6 @@ content = `
 </div>
 
 ${r.suspicious && r.suspicious.suspiciousScore > 0.05 ? `
-
 <div class="susp-card">
   <div class="susp-title">⚠ Обнаружены признаки манипуляций с текстом</div>
   <ul class="susp-list">
@@ -3448,10 +3427,9 @@ ${r.suspicious && r.suspicious.suspiciousScore > 0.05 ? `
   </div>
 </div>
 
-${r._apiError ? `<div class="warn">⚠ API недоступен (${escapeHtml(r._apiError)}). Показан локальный анализ.</div>` : ‘’}
+${r._apiError ? `<div class="warn">⚠ API недоступен (${escapeHtml(r._apiError)}). Показан локальный анализ.</div>` : ''}
 
 ${(r.recommendations || []).length ? `
-
 <div class="card">
   <div class="card-t" style="color:var(--amb)">💡 Рекомендации</div>
   ${r.recommendations.map(rec =>
@@ -3461,10 +3439,9 @@ ${(r.recommendations || []).length ? `
 `;
   }
 
-// ВКЛАДКА «ФРАГМЕНТЫ» — детальная разбивка каждого подозрительного фрагмента
-else if(S.tab === ‘fragments’){
-content = `
-
+  // ВКЛАДКА «ФРАГМЕНТЫ» — детальная разбивка каждого подозрительного фрагмента
+  else if(S.tab === 'fragments'){
+    content = `
 <div class="card">
   <div class="card-t">Анализ фрагментов (${(r.fragments || []).length})</div>
   <div class="legend">
@@ -3477,10 +3454,9 @@ content = `
 </div>`;
   }
 
-// ВКЛАДКА «ТЕКСТ» — исходный документ с подсветкой по типам фрагментов
-else if(S.tab === ‘text’){
-content = `
-
+  // ВКЛАДКА «ТЕКСТ» — исходный документ с подсветкой по типам фрагментов
+  else if(S.tab === 'text'){
+    content = `
 <div class="card">
   <div class="card-t">Исходный текст с разметкой</div>
   <div class="legend">
@@ -3492,10 +3468,9 @@ content = `
 </div>`;
   }
 
-// ВКЛАДКА «ИСТОЧНИКИ» — найденные академические работы с DOI-ссылками
-else if(S.tab === ‘sources’){
-content = `
-
+  // ВКЛАДКА «ИСТОЧНИКИ» — найденные академические работы с DOI-ссылками
+  else if(S.tab === 'sources'){
+    content = `
 <div class="card">
   <div class="card-t">Обнаруженные источники (${(r.sources || []).length})</div>
   ${(r.sources || []).map(s => {
@@ -3518,16 +3493,13 @@ content = `
 </div>`;
   }
 
-// ВКЛАДКА «ИИ-АНАЛИЗ» — детальный отчёт по детекции ИИ-генерации
-else if(S.tab === ‘ai’){
-const verdictColor = r.ai_verdict === ‘human’ ? ‘var(–ap-orig)’ :
-r.ai_verdict === ‘mixed’ ? ‘var(–ap-suspicious)’ :
-‘var(–ap-borrow)’;
+  // ВКЛАДКА «ИИ-АНАЛИЗ» — детальный отчёт по детекции ИИ-генерации
+  else if(S.tab === 'ai'){
+    const verdictColor = r.ai_verdict === 'human' ? 'var(--ap-orig)' :
+                         r.ai_verdict === 'mixed' ? 'var(--ap-suspicious)' :
+                                                     'var(--ap-borrow)';
 
-```
-content = `
-```
-
+    content = `
 <div class="stats">
   ${mkStat('ИИ-вероятность', (r.ai_generated_percent || 0).toFixed(1) + '%', 'var(--ap-ai)', 'sparkle')}
   ${mkStat('Человек', (100 - (r.ai_generated_percent || 0)).toFixed(1) + '%', 'var(--ap-orig)', 'user')}
@@ -3556,7 +3528,6 @@ content = `
 </div>
 
 ${r.ai_analysis ? `
-
 <div class="card">
   <div class="card-t" style="color:var(--ap-ai)">🤖 Метрики ИИ-детекции</div>
   <div class="aim">
@@ -3584,10 +3555,9 @@ ${r.ai_analysis ? `
 </div>` : ''}`;
   }
 
-// ===== ОБЩИЙ КАРКАС РЕЗУЛЬТАТОВ =====
-// Вкладки + кнопки действий + содержимое активной вкладки + кнопки внизу
-app.innerHTML = `
-
+  // ===== ОБЩИЙ КАРКАС РЕЗУЛЬТАТОВ =====
+  // Вкладки + кнопки действий + содержимое активной вкладки + кнопки внизу
+  app.innerHTML = `
 <div class="tabs">
   ${tabs.map(t => `<button class="tab ${S.tab === t.id ? 'on' : ''}" data-t="${t.id}">${t.l}</button>`).join('')}
 </div>
@@ -3607,54 +3577,54 @@ ${content}
   <button class="btn btn-go" id="dlMain" style="flex:1;font-size:13px;padding:12px">📥 Скачать отчёт</button>
 </div>`;
 
-// ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
+  // ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
 
-// Переключение вкладок
-$$(’.tab’).forEach(btn => {
-btn.onclick = () => {
-S.tab = btn.dataset.t;
-renderResult();
-};
-});
+  // Переключение вкладок
+  $$('.tab').forEach(btn => {
+    btn.onclick = () => {
+      S.tab = btn.dataset.t;
+      renderResult();
+    };
+  });
 
-// Скачивание отчётов
-const downloadFull = () => downloadFile(reportHTML(r, S.fn, false), S.fn, ‘Полный’);
-const downloadAI = () => downloadFile(reportHTML(r, S.fn, true), S.fn, ‘ИИ’);
-$(’#dlFull’).onclick = downloadFull;
-$(’#dlMain’).onclick = downloadFull;
-$(’#dlAI’).onclick = downloadAI;
+  // Скачивание отчётов
+  const downloadFull = () => downloadFile(reportHTML(r, S.fn, false), S.fn, 'Полный');
+  const downloadAI = () => downloadFile(reportHTML(r, S.fn, true), S.fn, 'ИИ');
+  $('#dlFull').onclick = downloadFull;
+  $('#dlMain').onclick = downloadFull;
+  $('#dlAI').onclick = downloadAI;
 
-// Email
-const sendEmailBtn = $(’#sendEmail’);
-if(sendEmailBtn) sendEmailBtn.onclick = () => emailReport(S.email, r, S.fn);
+  // Email
+  const sendEmailBtn = $('#sendEmail');
+  if(sendEmailBtn) sendEmailBtn.onclick = () => emailReport(S.email, r, S.fn);
 
-// Поделиться (Web Share API)
-const shareButton = $(’#shareBtn’);
-if(shareButton){
-shareButton.onclick = async () => {
-const result = await shareReport(r, S.fn);
-if(result === ‘copied’){
-toast(‘Скопировано в буфер обмена’, ‘success’);
-} else if(result === true){
-toast(‘Отчёт отправлен’, ‘success’);
-}
-};
-}
+  // Поделиться (Web Share API)
+  const shareButton = $('#shareBtn');
+  if(shareButton){
+    shareButton.onclick = async () => {
+      const result = await shareReport(r, S.fn);
+      if(result === 'copied'){
+        toast('Скопировано в буфер обмена', 'success');
+      } else if(result === true){
+        toast('Отчёт отправлен', 'success');
+      }
+    };
+  }
 
-// Печать
-const printButton = $(’#printBtn’);
-if(printButton) printButton.onclick = () => printReport(r, S.fn);
+  // Печать
+  const printButton = $('#printBtn');
+  if(printButton) printButton.onclick = () => printReport(r, S.fn);
 
-// Сброс на новую проверку
-$(’#newCheck’).onclick = () => {
-S.res = null;
-S.text = ‘’;
-S.fn = ‘’;
-S.tab = ‘overview’;
-clearDraft();
-renderHome();
-window.scrollTo(0, 0);
-};
+  // Сброс на новую проверку
+  $('#newCheck').onclick = () => {
+    S.res = null;
+    S.text = '';
+    S.fn = '';
+    S.tab = 'overview';
+    clearDraft();
+    renderHome();
+    window.scrollTo(0, 0);
+  };
 }
 
 // =============================================================================
@@ -3668,48 +3638,47 @@ window.scrollTo(0, 0);
 // =============================================================================
 
 function reportHTML(r, fn, aiOnly){
-const now = new Date().toLocaleString(‘ru-RU’);
-// Уникальный ID отчёта на основе временной метки
-const reportId = ‘SP-’ + Date.now().toString(36).toUpperCase();
+  const now = new Date().toLocaleString('ru-RU');
+  // Уникальный ID отчёта на основе временной метки
+  const reportId = 'SP-' + Date.now().toString(36).toUpperCase();
 
-// Если отчёт только об ИИ, фильтруем фрагменты и источники
-const fragments = aiOnly
-? (r.fragments || []).filter(f => f.type === ‘ai_generated’)
-: (r.fragments || []);
-const sources = aiOnly
-? (r.sources || []).filter(s => s.type === ‘ai_generated’)
-: (r.sources || []);
+  // Если отчёт только об ИИ, фильтруем фрагменты и источники
+  const fragments = aiOnly
+    ? (r.fragments || []).filter(f => f.type === 'ai_generated')
+    : (r.fragments || []);
+  const sources = aiOnly
+    ? (r.sources || []).filter(s => s.type === 'ai_generated')
+    : (r.sources || []);
 
-// Цвета для разных типов фрагментов в отчёте
-const fragmentColors = {
-original: ‘#30D158’,
-borrowed: ‘#FF453A’,
-ai_generated: ‘#BF5AF2’,
-citation: ‘#58B5F2’,
-self_citation: ‘#FF9F0A’
-};
-const fragmentLabels = {
-original: ‘Оригинал’,
-borrowed: ‘Заимствование’,
-ai_generated: ‘ИИ-контент’,
-citation: ‘Цитирование’,
-self_citation: ‘Самоцитирование’
-};
+  // Цвета для разных типов фрагментов в отчёте
+  const fragmentColors = {
+    original: '#30D158',
+    borrowed: '#FF453A',
+    ai_generated: '#BF5AF2',
+    citation: '#58B5F2',
+    self_citation: '#FF9F0A'
+  };
+  const fragmentLabels = {
+    original: 'Оригинал',
+    borrowed: 'Заимствование',
+    ai_generated: 'ИИ-контент',
+    citation: 'Цитирование',
+    self_citation: 'Самоцитирование'
+  };
 
-// Хелперы для отображения уровней метрик
-const scoreLabel = v => v === ‘low’ ? ‘Низкий’ : v === ‘medium’ ? ‘Средний’ : ‘Высокий’;
-const scoreColor = v => v === ‘low’ ? ‘#30D158’ : v === ‘medium’ ? ‘#FFD60A’ : ‘#FF453A’;
+  // Хелперы для отображения уровней метрик
+  const scoreLabel = v => v === 'low' ? 'Низкий' : v === 'medium' ? 'Средний' : 'Высокий';
+  const scoreColor = v => v === 'low' ? '#30D158' : v === 'medium' ? '#FFD60A' : '#FF453A';
 
-const verdictColor = r.ai_verdict === ‘human’ ? ‘#30D158’ :
-r.ai_verdict === ‘mixed’ ? ‘#FFD60A’ : ‘#FF453A’;
-const verdictText = r.ai_verdict === ‘human’ ? ‘Текст написан человеком’ :
-r.ai_verdict === ‘mixed’ ? ‘Признаки ИИ-контента’ :
-‘Сгенерирован ИИ’;
-const originality = r.originality_percent || 0;
+  const verdictColor = r.ai_verdict === 'human' ? '#30D158' :
+                       r.ai_verdict === 'mixed' ? '#FFD60A' : '#FF453A';
+  const verdictText = r.ai_verdict === 'human' ? 'Текст написан человеком' :
+                      r.ai_verdict === 'mixed' ? 'Признаки ИИ-контента' :
+                                                  'Сгенерирован ИИ';
+  const originality = r.originality_percent || 0;
 
-return `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">
+  return `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-
 <title>${aiOnly ? 'Отчёт ИИ' : 'Полный отчёт'} — SOZYKIN Плагиат — ${fn}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -3767,19 +3736,18 @@ body{font-family:'Segoe UI','Helvetica Neue',system-ui,sans-serif;background:#f5
 .ft b{color:#0A84FF;font-weight:600}
 
 @media print{
-body{padding:0;background:#fff}
-.c{box-shadow:none;border-radius:0}
-.s{page-break-inside:avoid}
+  body{padding:0;background:#fff}
+  .c{box-shadow:none;border-radius:0}
+  .s{page-break-inside:avoid}
 }
 @media(max-width:640px){
-.stats{grid-template-columns:repeat(2,1fr)}
-.ig{grid-template-columns:1fr}
-.am{grid-template-columns:repeat(2,1fr)}
-.h{flex-direction:column;text-align:center;padding:24px}
-.s{padding:20px 18px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .ig{grid-template-columns:1fr}
+  .am{grid-template-columns:repeat(2,1fr)}
+  .h{flex-direction:column;text-align:center;padding:24px}
+  .s{padding:20px 18px}
 }
 </style>
-
 </head><body>
 <div class="c">
 <div class="h">
@@ -3809,7 +3777,6 @@ body{padding:0;background:#fff}
 </div>
 
 ${r.suspicious && r.suspicious.suspiciousScore > 0.05 ? `
-
 <div class="s">
   <h2>⚠ Признаки манипуляций с текстом</h2>
   <div class="susp">
@@ -3897,7 +3864,6 @@ ${r.suspicious && r.suspicious.suspiciousScore > 0.05 ? `
 </div>
 
 ${(r.recommendations || []).length ? `<div class="s">
-
   <h2>Рекомендации</h2>
   ${r.recommendations.map(rec => `<div class="rec">💡 ${rec}</div>`).join('')}
 </div>` : ''}
@@ -3915,18 +3881,18 @@ ${(r.recommendations || []).length ? `<div class="s">
 // =============================================================================
 
 function downloadFile(html, fn, suffix){
-const blob = new Blob([html], { type: ‘text/html;charset=utf-8’ });
-const url = URL.createObjectURL(blob);
-const a = document.createElement(‘a’);
-a.href = url;
-// Безопасное имя файла: только буквы, цифры, точки, дефисы и подчёркивания
-const safeName = (fn || ‘doc’).replace(/[^a-zA-Zа-яА-ЯёЁ0-9.*-]/g, ’*’).slice(0, 50);
-a.download = `SP_${suffix}_${safeName}_${new Date().toISOString().slice(0, 10)}.html`;
-document.body.appendChild(a);
-a.click();
-document.body.removeChild(a);
-// Освобождаем память: убираем временный URL через секунду
-setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  // Безопасное имя файла: только буквы, цифры, точки, дефисы и подчёркивания
+  const safeName = (fn || 'doc').replace(/[^a-zA-Zа-яА-ЯёЁ0-9._-]/g, '_').slice(0, 50);
+  a.download = `SP_${suffix}_${safeName}_${new Date().toISOString().slice(0, 10)}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Освобождаем память: убираем временный URL через секунду
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // =============================================================================
@@ -3934,11 +3900,11 @@ setTimeout(() => URL.revokeObjectURL(url), 1000);
 // =============================================================================
 
 function emailReport(email, r, fn){
-const subject = ’SOZYKIN Плагиат — Отчёт: ’ + fn;
-const orig = (r.originality_percent || 0).toFixed(1);
-const body = `Результаты проверки SOZYKIN Плагиат
+  const subject = 'SOZYKIN Плагиат — Отчёт: ' + fn;
+  const orig = (r.originality_percent || 0).toFixed(1);
+  const body = `Результаты проверки SOZYKIN Плагиат
 Документ: ${fn}
-Дата: ${new Date().toLocaleString(‘ru-RU’)}
+Дата: ${new Date().toLocaleString('ru-RU')}
 
 ═══ ПОКАЗАТЕЛИ ═══
 Оригинальность: ${orig}%
@@ -3947,21 +3913,21 @@ const body = `Результаты проверки SOZYKIN Плагиат
 Цитирование: ${(r.citation_percent || 0).toFixed(1)}%
 
 ═══ ВЕРДИКТ ИИ ═══
-${r.ai_verdict === ‘human’ ? ‘✅ Написан человеком’ :
-r.ai_verdict === ‘mixed’ ? ‘⚠ Признаки ИИ’ :
-‘🚨 Сгенерирован ИИ’}
+${r.ai_verdict === 'human' ? '✅ Написан человеком' :
+  r.ai_verdict === 'mixed' ? '⚠ Признаки ИИ' :
+                              '🚨 Сгенерирован ИИ'}
 Уверенность анализа: ${r.ai_confidence || 0}%
 
 ═══ АНАЛИЗ ═══
-${r.ai_analysis?.details || ‘—’}
+${r.ai_analysis?.details || '—'}
 
 ═══ РЕКОМЕНДАЦИИ ═══
-${(r.recommendations || []).map(x => ‘• ’ + x).join(’\n’)}
+${(r.recommendations || []).map(x => '• ' + x).join('\n')}
 
 Полный HTML-отчёт с разметкой фрагментов доступен для скачивания в приложении SOZYKIN Плагиат.`;
-window.location.href = ‘mailto:’ + encodeURIComponent(email) +
-‘?subject=’ + encodeURIComponent(subject) +
-‘&body=’ + encodeURIComponent(body);
+  window.location.href = 'mailto:' + encodeURIComponent(email) +
+    '?subject=' + encodeURIComponent(subject) +
+    '&body=' + encodeURIComponent(body);
 }
 
 // =============================================================================
@@ -3969,38 +3935,40 @@ window.location.href = ‘mailto:’ + encodeURIComponent(email) +
 // =============================================================================
 
 async function shareReport(r, fn){
-const orig = (r.originality_percent || 0).toFixed(1);
-const text = `SOZYKIN Плагиат — ${fn}\n\n` +
-`Оригинальность: ${orig}%\n` +
-`Заимствования: ${(r.borrowed_percent || 0).toFixed(1)}%\n` +
-`ИИ-контент: ${(r.ai_generated_percent || 0).toFixed(1)}%\n` +
-`Вердикт: ${r.ai_verdict === 'human' ? '✅ Человек' : r.ai_verdict === 'mixed' ? '⚠ Смешанный' : '🚨 ИИ'}`;
+  const orig = (r.originality_percent || 0).toFixed(1);
+  const text = `SOZYKIN Плагиат — ${fn}\n\n` +
+    `Оригинальность: ${orig}%\n` +
+    `Заимствования: ${(r.borrowed_percent || 0).toFixed(1)}%\n` +
+    `ИИ-контент: ${(r.ai_generated_percent || 0).toFixed(1)}%\n` +
+    `Вердикт: ${r.ai_verdict === 'human' ? '✅ Человек' :
+                r.ai_verdict === 'mixed' ? '⚠ Смешанный' :
+                                            '🚨 ИИ'}`;
 
-if(navigator.share){
-try{
-// Пробуем поделиться файлом отчёта если поддерживается
-const html = reportHTML(r, fn, false);
-const blob = new Blob([html], { type: ‘text/html’ });
-const file = new File([blob], `SOZYKIN_${fn}.html`, { type: ‘text/html’ });
-if(navigator.canShare && navigator.canShare({ files: [file] })){
-await navigator.share({ title: ‘SOZYKIN Плагиат’, text, files: [file] });
-} else {
-await navigator.share({ title: ‘SOZYKIN Плагиат’, text });
-}
-return true;
-}catch(e){
-if(e.name !== ‘AbortError’) console.warn(‘Share error:’, e);
-}
-}
+  if(navigator.share){
+    try{
+      // Пробуем поделиться файлом отчёта если поддерживается
+      const html = reportHTML(r, fn, false);
+      const blob = new Blob([html], { type: 'text/html' });
+      const file = new File([blob], `SOZYKIN_${fn}.html`, { type: 'text/html' });
+      if(navigator.canShare && navigator.canShare({ files: [file] })){
+        await navigator.share({ title: 'SOZYKIN Плагиат', text, files: [file] });
+      } else {
+        await navigator.share({ title: 'SOZYKIN Плагиат', text });
+      }
+      return true;
+    }catch(e){
+      if(e.name !== 'AbortError') console.warn('Share error:', e);
+    }
+  }
 
-// Fallback — копирование в буфер обмена
-if(navigator.clipboard){
-try{
-await navigator.clipboard.writeText(text);
-return ‘copied’;
-}catch(e){}
-}
-return false;
+  // Fallback — копирование в буфер обмена
+  if(navigator.clipboard){
+    try{
+      await navigator.clipboard.writeText(text);
+      return 'copied';
+    }catch(e){}
+  }
+  return false;
 }
 
 // =============================================================================
@@ -4008,17 +3976,17 @@ return false;
 // =============================================================================
 
 function printReport(r, fn){
-const html = reportHTML(r, fn, false);
-const printWindow = window.open(’’, ‘_blank’);
-if(!printWindow){
-toast(‘Разрешите всплывающие окна для печати’, ‘warn’);
-return;
-}
-printWindow.document.write(html);
-printWindow.document.close();
-printWindow.onload = () => {
-setTimeout(() => printWindow.print(), 500);
-};
+  const html = reportHTML(r, fn, false);
+  const printWindow = window.open('', '_blank');
+  if(!printWindow){
+    toast('Разрешите всплывающие окна для печати', 'warn');
+    return;
+  }
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.onload = () => {
+    setTimeout(() => printWindow.print(), 500);
+  };
 }
 
 // =============================================================================
@@ -4039,72 +4007,69 @@ setTimeout(() => printWindow.print(), 500);
 // =============================================================================
 
 function registerServiceWorker(){
-if(!(‘serviceWorker’ in navigator) || location.protocol !== ‘https:’) return;
+  if(!('serviceWorker' in navigator) || location.protocol !== 'https:') return;
 
-// Inline Service Worker — генерируется через Blob URL.
-// Это позволяет иметь Service Worker без отдельного файла на сервере.
-const swCode = `
-const CACHE_NAME = ‘sozykin-v8’;
-const URLS_TO_CACHE = [
-‘./’,
-‘https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js’,
-‘https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js’,
-‘https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js’,
-‘https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap’
-];
+  // Inline Service Worker — генерируется через Blob URL.
+  // Это позволяет иметь Service Worker без отдельного файла на сервере.
+  const swCode = `
+    const CACHE_NAME = 'sozykin-v8';
+    const URLS_TO_CACHE = [
+      './',
+      'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+      'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap'
+    ];
 
-```
-self.addEventListener('install', e => {
-  self.skipWaiting();
-  e.waitUntil(
-    caches.open(CACHE_NAME).then(cache =>
-      cache.addAll(URLS_TO_CACHE).catch(() => {})
-    )
+    self.addEventListener('install', e => {
+      self.skipWaiting();
+      e.waitUntil(
+        caches.open(CACHE_NAME).then(cache =>
+          cache.addAll(URLS_TO_CACHE).catch(() => {})
+        )
+      );
+    });
+
+    self.addEventListener('activate', e => {
+      e.waitUntil(
+        caches.keys().then(keys =>
+          Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+        )
+      );
+      self.clients.claim();
+    });
+
+    self.addEventListener('fetch', e => {
+      const url = e.request.url;
+      // API-запросы не кешируем — они должны всегда идти на сервер
+      const apiHosts = [
+        'api.groq.com', 'api.openalex.org', 'api.crossref.org',
+        'api.semanticscholar.org', 'api.cerebras.ai', 'api.mistral.ai',
+        'openrouter.ai', 'gigachat', 'doaj.org', 'arxiv.org', 'wikipedia.org'
+      ];
+      if(apiHosts.some(host => url.includes(host))) return;
+
+      e.respondWith(
+        caches.match(e.request).then(cached =>
+          cached || fetch(e.request).then(response => {
+            // Сохраняем успешные ответы в кеш
+            if(response.ok && (response.type === 'basic' || response.type === 'cors')){
+              const clone = response.clone();
+              caches.open(CACHE_NAME).then(cache =>
+                cache.put(e.request, clone)
+              ).catch(() => {});
+            }
+            return response;
+          }).catch(() => caches.match('./'))
+        )
+      );
+    });
+  `;
+  const swBlob = new Blob([swCode], { type: 'application/javascript' });
+  const swUrl = URL.createObjectURL(swBlob);
+  navigator.serviceWorker.register(swUrl).catch(e =>
+    console.warn('Service Worker registration failed:', e)
   );
-});
-
-self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
-});
-
-self.addEventListener('fetch', e => {
-  const url = e.request.url;
-  // API-запросы не кешируем — они должны всегда идти на сервер
-  const apiHosts = [
-    'api.groq.com', 'api.openalex.org', 'api.crossref.org',
-    'api.semanticscholar.org', 'api.cerebras.ai', 'api.mistral.ai',
-    'openrouter.ai', 'gigachat', 'doaj.org', 'arxiv.org', 'wikipedia.org'
-  ];
-  if(apiHosts.some(host => url.includes(host))) return;
-
-  e.respondWith(
-    caches.match(e.request).then(cached =>
-      cached || fetch(e.request).then(response => {
-        // Сохраняем успешные ответы в кеш
-        if(response.ok && (response.type === 'basic' || response.type === 'cors')){
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache =>
-            cache.put(e.request, clone)
-          ).catch(() => {});
-        }
-        return response;
-      }).catch(() => caches.match('./'))
-    )
-  );
-});
-```
-
-`;
-const swBlob = new Blob([swCode], { type: ‘application/javascript’ });
-const swUrl = URL.createObjectURL(swBlob);
-navigator.serviceWorker.register(swUrl).catch(e =>
-console.warn(‘Service Worker registration failed:’, e)
-);
 }
 
 // =============================================================================
@@ -4116,37 +4081,37 @@ console.warn(‘Service Worker registration failed:’, e)
 // =============================================================================
 
 function initApp(){
-// Восстановление черновика из предыдущей сессии
-const draft = loadDraft();
-if(draft && !S.text){
-S.text = draft.text;
-S.fn = draft.fn || ‘’;
-}
+  // Восстановление черновика из предыдущей сессии
+  const draft = loadDraft();
+  if(draft && !S.text){
+    S.text = draft.text;
+    S.fn = draft.fn || '';
+  }
 
-// Регистрация Service Worker для оффлайн-работы
-registerServiceWorker();
+  // Регистрация Service Worker для оффлайн-работы
+  registerServiceWorker();
 
-// Отрисовка главного экрана
-renderHome();
+  // Отрисовка главного экрана
+  renderHome();
 
-// Настройка командной палитры удалена в версии 7.2
+  // Настройка командной палитры удалена в версии 7.2
 
-// Уведомление о восстановлении черновика, если он был
-if(draft){
-setTimeout(() => {
-const errorBox = $(’#eb’);
-if(errorBox){
-errorBox.innerHTML = `<div class="info">📝 Восстановлен черновик от ${new Date(draft.t).toLocaleString('ru-RU')}. <a href="javascript:void(0)" onclick="localStorage.removeItem('sp_draft_v7');location.reload()">Очистить</a></div>`;
-}
-}, 300);
-}
+  // Уведомление о восстановлении черновика, если он был
+  if(draft){
+    setTimeout(() => {
+      const errorBox = $('#eb');
+      if(errorBox){
+        errorBox.innerHTML = `<div class="info">📝 Восстановлен черновик от ${new Date(draft.t).toLocaleString('ru-RU')}. <a href="javascript:void(0)" onclick="localStorage.removeItem('sp_draft_v7');location.reload()">Очистить</a></div>`;
+      }
+    }, 300);
+  }
 }
 
 // Запуск приложения когда DOM готов
-if(document.readyState === ‘loading’){
-document.addEventListener(‘DOMContentLoaded’, initApp);
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', initApp);
 } else {
-initApp();
+  initApp();
 }
 
 </script>
