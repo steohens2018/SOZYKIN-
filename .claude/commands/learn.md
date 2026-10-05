@@ -1,75 +1,75 @@
-# /learn - Extract Reusable Patterns
+# /learn — извлечь повторно используемые приёмы
 
-Analyze the current session and extract any patterns worth saving as skills.
+Проанализировать текущую сессию и выделить приёмы, которые стоит сохранить как навыки.
 
-## Trigger
+## Когда запускать
 
-Run `/learn` at any point during a session when you've solved a non-trivial problem.
+Запускайте `/learn` в любой момент сессии, когда решили нетривиальную задачу.
 
-## What to Extract
+## Что извлекать
 
-Look for:
+Ищите:
 
-1. **Error Resolution Patterns**
-   - What error occurred?
-   - What was the root cause?
-   - What fixed it?
-   - Is this reusable for similar errors?
+1. **Способы устранения ошибок**
+   - Какая ошибка возникла?
+   - В чём была первопричина?
+   - Что её исправило?
+   - Пригодится ли это для похожих ошибок?
 
-2. **Debugging Techniques**
-   - Non-obvious debugging steps
-   - Tool combinations that worked
-   - Diagnostic patterns
+2. **Приёмы отладки**
+   - Неочевидные шаги отладки
+   - Сработавшие сочетания инструментов
+   - Диагностические приёмы
 
-3. **Workarounds**
-   - Library quirks
-   - API limitations
-   - Version-specific fixes
+3. **Обходные пути**
+   - Особенности библиотек
+   - Ограничения API
+   - Исправления под конкретные версии
 
-4. **Project-Specific Patterns**
-   - Codebase conventions discovered
-   - Architecture decisions made
-   - Integration patterns
+4. **Приёмы, специфичные для проекта**
+   - Обнаруженные соглашения в коде
+   - Принятые архитектурные решения
+   - Способы интеграции
 
-## Output Format
+## Формат результата
 
-Create a skill file at `.claude/skills/learned-[pattern-name]/SKILL.md` (with `name` and `description` frontmatter so Claude Code picks it up):
+Создайте файл навыка `.claude/skills/learned-[название-приёма]/SKILL.md` (с полями `name` и `description` во frontmatter, чтобы Claude Code его подхватил):
 
 ```markdown
 ---
-name: learned-[pattern-name]
-description: [One line - when this pattern applies]
+name: learned-[название-приёма]
+description: [Одна строка — когда применяется этот приём]
 ---
 
-# [Descriptive Pattern Name]
+# [Понятное название приёма]
 
-**Extracted:** [Date]
-**Context:** [Brief description of when this applies]
+**Извлечено:** [Дата]
+**Контекст:** [Кратко — когда это применимо]
 
-## Problem
-[What problem this solves - be specific]
+## Проблема
+[Какую проблему решает — конкретно]
 
-## Solution
-[The pattern/technique/workaround]
+## Решение
+[Приём / техника / обходной путь]
 
-## Example
-[Code example if applicable]
+## Пример
+[Пример кода, если уместно]
 
-## When to Use
-[Trigger conditions - what should activate this skill]
+## Когда использовать
+[Условия срабатывания — что должно активировать этот навык]
 ```
 
-## Process
+## Порядок действий
 
-1. Review the session for extractable patterns
-2. Identify the most valuable/reusable insight
-3. Draft the skill file
-4. Ask user to confirm before saving
-5. Save to `.claude/skills/learned-[pattern-name]/SKILL.md`
+1. Просмотреть сессию в поисках приёмов, которые можно извлечь
+2. Выбрать самое ценное и повторно применимое
+3. Набросать файл навыка
+4. Попросить пользователя подтвердить перед сохранением
+5. Сохранить в `.claude/skills/learned-[название-приёма]/SKILL.md`
 
-## Notes
+## Замечания
 
-- Don't extract trivial fixes (typos, simple syntax errors)
-- Don't extract one-time issues (specific API outages, etc.)
-- Focus on patterns that will save time in future sessions
-- Keep skills focused - one pattern per skill
+- Не извлекать тривиальные исправления (опечатки, простые синтаксические ошибки)
+- Не извлекать разовые проблемы (конкретные сбои API и т. п.)
+- Сосредоточиться на приёмах, которые сэкономят время в будущих сессиях
+- Навыки должны быть узкими — один приём на навык

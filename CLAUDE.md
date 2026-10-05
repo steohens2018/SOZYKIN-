@@ -1,68 +1,71 @@
 # SOZYKIN Плагиат
 
-Client-side plagiarism and AI-text checker. The whole app is one file, `index.html`
-(HTML + CSS + JS, no build step, no package manager). It runs entirely in the browser
-and is meant to work from Russia without a VPN.
+Клиентская проверка текстов на плагиат и ИИ-генерацию. Всё приложение — один файл,
+`index.html` (HTML + CSS + JS, без сборки и без пакетного менеджера). Оно целиком
+работает в браузере и должно открываться из России без VPN.
 
-## Layout of `index.html`
+## Устройство `index.html`
 
-| Lines (approx.) | What |
+| Строки (примерно) | Что там |
 |---|---|
-| 1–32 | `<head>`: meta, inline SVG icons, data-URI PWA manifest, CDN scripts (mammoth 1.8.0, pdf.js 3.11.174) |
+| 1–32 | `<head>`: meta-теги, встроенные SVG-иконки, PWA-манифест в data-URI, скрипты с CDN (mammoth 1.8.0, pdf.js 3.11.174) |
 | 33–1273 | `<style>` |
-| 1303–end | Main `<script>`, split into `// ===` sections with Russian headings |
+| 1303–конец | Основной `<script>`, разбитый на разделы `// ===` с заголовками на русском |
 
-Main script sections, in order: global state `S` (persisted to `localStorage` keys
-`sp_v7` / `sp_draft_v7`), toasts, dictionaries, text utilities (`tokenize`,
-`escapeHtml`), document suspicion detector, MinHash + LSH, TF-IDF cosine, file
-reading (PDF/DOCX/TXT), local analysis, lexical-diversity metrics (MTLD, HD-D,
-Honoré, Yule K, Zipf), AI providers, API mode, source search (OpenAlex, Crossref,
-Semantic Scholar, arXiv, DOAJ, ru.wikipedia), key-phrase extraction,
-Fast-DetectGPT-lite, run-analysis entry point, UI helpers, home screen, file upload,
-progress screen.
+Разделы основного скрипта по порядку: глобальное состояние `S` (сохраняется в
+`localStorage` под ключами `sp_v7` / `sp_draft_v7`), тосты, словари, утилиты для
+текста (`tokenize`, `escapeHtml`), детектор подозрительности документа,
+MinHash + LSH, TF-IDF с косинусной мерой, чтение файлов (PDF/DOCX/TXT), локальный
+анализ, метрики лексического разнообразия (MTLD, HD-D, Оноре, K Юла, Ципф),
+ИИ-провайдеры, API-режим, поиск источников (OpenAlex, Crossref, Semantic Scholar,
+arXiv, DOAJ, ru.wikipedia), извлечение ключевых фраз, Fast-DetectGPT-lite, точка
+входа анализа, UI-хелперы, главный экран, загрузка файла, экран прогресса.
 
-Find a section with `grep -n '^// ===' -A1 index.html`.
+Найти раздел: `grep -n '^// ===' -A1 index.html`.
 
-## Conventions
+## Соглашения
 
-- Keep it a single file. Don't add a bundler, framework or `package.json` unless asked.
-- Code comments are in Russian and explain *why*; match that style.
-- UI text is Russian.
-- Use `toast()` for user messages, never `alert()`.
-- Mobile first: test at phone width (390px), respect safe-area insets.
+- Всё остаётся в одном файле. Не добавлять сборщик, фреймворк или `package.json` без просьбы.
+- Комментарии в коде пишутся по-русски и объясняют *зачем*; придерживаться этого стиля.
+- Тексты интерфейса — на русском.
+- Сообщения пользователю — через `toast()`, никогда не через `alert()`.
+- Сначала мобильная версия: проверять при ширине телефона (390px), учитывать safe-area.
 
-## Security rules (adapted from everything-claude-code `rules/security.md`)
+## Правила безопасности (по мотивам `rules/security.md` из everything-claude-code)
 
-- Never commit an API key. The user's key lives only in `S.apiKey` / `localStorage`
-  and is sent only to the selected provider's endpoint.
-- Anything from a document, an API response or the user that goes into `innerHTML`
-  or an HTML template string must pass through `escapeHtml()`.
-- External scripts: cdnjs only, pinned to an exact version.
-- New network calls: HTTPS, and degrade gracefully when the service is unreachable
-  (no VPN is a hard requirement).
+- Никогда не коммитить API-ключи. Ключ пользователя хранится только в `S.apiKey` /
+  `localStorage` и отправляется только на адрес выбранного провайдера.
+- Всё, что приходит из документа, из ответа API или от пользователя и попадает в
+  `innerHTML` или в шаблонную строку с HTML, должно проходить через `escapeHtml()`.
+- Внешние скрипты: только с cdnjs и с точно указанной версией.
+- Новые сетевые запросы: только HTTPS и корректная работа, если сервис недоступен
+  (работа без VPN — обязательное требование).
 
-## Workflow
+## Порядок работы
 
-- `/plan` before larger changes (uses the `planner` agent).
-- After changing `index.html`, run `/verify` (or `node .claude/scripts/verify.mjs`
-  directly). It syntax-checks the inline scripts and, if Playwright is installed,
-  smoke-loads the page in headless Chromium.
-- Use the `code-reviewer` agent on finished changes, and the `security-reviewer`
-  agent or `security-review` skill when touching API keys, file parsing or `innerHTML`.
-- Commit messages: `<type>: <description>` with types feat, fix, refactor, docs,
-  test, chore, perf, ci.
+- Перед крупными изменениями — `/plan` (использует агента `planner`).
+- После изменений в `index.html` — `/verify` (или напрямую
+  `node .claude/scripts/verify.mjs`). Скрипт проверяет синтаксис встроенных скриптов
+  и, если установлен Playwright, открывает страницу в headless Chromium.
+- Готовые изменения проверять агентом `code-reviewer`; при работе с API-ключами,
+  разбором файлов или `innerHTML` — агентом `security-reviewer` или навыком
+  `security-review`.
+- Сообщения коммитов: `<тип>: <описание>`, типы: feat, fix, refactor, docs, test,
+  chore, perf, ci.
 
-## Claude Code setup
+## Настройка Claude Code
 
-`.claude/` holds a subset of
+В `.claude/` лежит часть набора
 [everything-claude-code](https://github.com/worldflowai/everything-claude-code)
-(MIT, by Affaan Mustafa), picked for a static single-file site:
+(лицензия MIT, автор Affaan Mustafa), отобранная для статического сайта из одного
+файла и переведённая на русский:
 
-- `agents/`: planner, architect, code-reviewer, security-reviewer (verbatim)
-- `skills/security-review` (verbatim)
-- `commands/`: `/plan`, `/learn`, `/checkpoint` (lightly adapted), `/verify` (rewritten for this repo)
-- `scripts/verify.mjs`: checks behind `/verify`
+- `agents/`: planner, architect, code-reviewer, security-reviewer
+- `skills/security-review`
+- `commands/`: `/plan`, `/learn`, `/checkpoint` (слегка адаптированы), `/verify` (переписана под этот репозиторий)
+- `scripts/verify.mjs`: проверки, которые запускает `/verify`
 
-Left out on purpose: TDD/coverage, build-error and E2E agents, React/backend/ClickHouse
-skills, and the upstream hooks (tmux, Prettier, tsc, .md blocker), which assume a
-Node/TypeScript project.
+Намеренно не перенесены: TDD и требования к покрытию тестами, агенты для ошибок
+сборки и E2E-тестов, навыки для React, бэкенда и ClickHouse, а также исходные хуки
+(tmux, Prettier, tsc, запрет `.md`-файлов) — они рассчитаны на проекты на
+Node/TypeScript.

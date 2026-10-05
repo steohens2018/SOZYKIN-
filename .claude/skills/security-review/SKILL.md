@@ -1,64 +1,64 @@
 ---
 name: security-review
-description: Use this skill when adding authentication, handling user input, working with secrets, creating API endpoints, or implementing payment/sensitive features. Provides comprehensive security checklist and patterns.
+description: Использовать этот навык при добавлении аутентификации, обработке пользовательского ввода, работе с секретами, создании API-эндпоинтов или реализации платёжных и других чувствительных функций. Даёт полный чек-лист безопасности и приёмы.
 ---
 
-# Security Review Skill
+# Навык проверки безопасности
 
-This skill ensures all code follows security best practices and identifies potential vulnerabilities.
+Этот навык следит за тем, чтобы весь код соответствовал лучшим практикам безопасности, и помогает находить возможные уязвимости.
 
-## When to Activate
+## Когда включать
 
-- Implementing authentication or authorization
-- Handling user input or file uploads
-- Creating new API endpoints
-- Working with secrets or credentials
-- Implementing payment features
-- Storing or transmitting sensitive data
-- Integrating third-party APIs
+- Реализация аутентификации или авторизации
+- Обработка пользовательского ввода или загрузки файлов
+- Создание новых API-эндпоинтов
+- Работа с секретами или учётными данными
+- Реализация платёжных функций
+- Хранение или передача чувствительных данных
+- Интеграция со сторонними API
 
-## Security Checklist
+## Чек-лист безопасности
 
-### 1. Secrets Management
+### 1. Управление секретами
 
-#### ❌ NEVER Do This
+#### ❌ НИКОГДА так не делайте
 ```typescript
-const apiKey = "sk-proj-xxxxx"  // Hardcoded secret
-const dbPassword = "password123" // In source code
+const apiKey = "sk-proj-xxxxx"  // Секрет прямо в коде
+const dbPassword = "password123" // В исходном коде
 ```
 
-#### ✅ ALWAYS Do This
+#### ✅ ВСЕГДА делайте так
 ```typescript
 const apiKey = process.env.OPENAI_API_KEY
 const dbUrl = process.env.DATABASE_URL
 
-// Verify secrets exist
+// Убедиться, что секреты заданы
 if (!apiKey) {
   throw new Error('OPENAI_API_KEY not configured')
 }
 ```
 
-#### Verification Steps
-- [ ] No hardcoded API keys, tokens, or passwords
-- [ ] All secrets in environment variables
-- [ ] `.env.local` in .gitignore
-- [ ] No secrets in git history
-- [ ] Production secrets in hosting platform (Vercel, Railway)
+#### Что проверить
+- [ ] Нет API-ключей, токенов и паролей прямо в коде
+- [ ] Все секреты — в переменных окружения
+- [ ] `.env.local` добавлен в .gitignore
+- [ ] Нет секретов в истории git
+- [ ] Секреты продакшена — на хостинг-платформе (Vercel, Railway)
 
-### 2. Input Validation
+### 2. Проверка входных данных
 
-#### Always Validate User Input
+#### Всегда проверяйте пользовательский ввод
 ```typescript
 import { z } from 'zod'
 
-// Define validation schema
+// Описать схему проверки
 const CreateUserSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1).max(100),
   age: z.number().int().min(0).max(150)
 })
 
-// Validate before processing
+// Проверить перед обработкой
 export async function createUser(input: unknown) {
   try {
     const validated = CreateUserSchema.parse(input)
@@ -72,22 +72,22 @@ export async function createUser(input: unknown) {
 }
 ```
 
-#### File Upload Validation
+#### Проверка загружаемых файлов
 ```typescript
 function validateFileUpload(file: File) {
-  // Size check (5MB max)
+  // Проверка размера (не больше 5 МБ)
   const maxSize = 5 * 1024 * 1024
   if (file.size > maxSize) {
     throw new Error('File too large (max 5MB)')
   }
 
-  // Type check
+  // Проверка типа
   const allowedTypes = ['image/jpeg', 'image/png', 'image/gif']
   if (!allowedTypes.includes(file.type)) {
     throw new Error('Invalid file type')
   }
 
-  // Extension check
+  // Проверка расширения
   const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif']
   const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0]
   if (!extension || !allowedExtensions.includes(extension)) {
@@ -98,59 +98,59 @@ function validateFileUpload(file: File) {
 }
 ```
 
-#### Verification Steps
-- [ ] All user inputs validated with schemas
-- [ ] File uploads restricted (size, type, extension)
-- [ ] No direct use of user input in queries
-- [ ] Whitelist validation (not blacklist)
-- [ ] Error messages don't leak sensitive info
+#### Что проверить
+- [ ] Весь пользовательский ввод проверяется по схемам
+- [ ] Загрузка файлов ограничена (размер, тип, расширение)
+- [ ] Пользовательский ввод не используется в запросах напрямую
+- [ ] Проверка по белому списку (а не по чёрному)
+- [ ] Сообщения об ошибках не раскрывают чувствительные данные
 
-### 3. SQL Injection Prevention
+### 3. Защита от SQL-инъекций
 
-#### ❌ NEVER Concatenate SQL
+#### ❌ НИКОГДА не склеивайте SQL
 ```typescript
-// DANGEROUS - SQL Injection vulnerability
+// ОПАСНО — уязвимость к SQL-инъекции
 const query = `SELECT * FROM users WHERE email = '${userEmail}'`
 await db.query(query)
 ```
 
-#### ✅ ALWAYS Use Parameterized Queries
+#### ✅ ВСЕГДА используйте параметризованные запросы
 ```typescript
-// Safe - parameterized query
+// Безопасно — параметризованный запрос
 const { data } = await supabase
   .from('users')
   .select('*')
   .eq('email', userEmail)
 
-// Or with raw SQL
+// Или с «сырым» SQL
 await db.query(
   'SELECT * FROM users WHERE email = $1',
   [userEmail]
 )
 ```
 
-#### Verification Steps
-- [ ] All database queries use parameterized queries
-- [ ] No string concatenation in SQL
-- [ ] ORM/query builder used correctly
-- [ ] Supabase queries properly sanitized
+#### Что проверить
+- [ ] Все запросы к базе параметризованы
+- [ ] Нет склейки строк в SQL
+- [ ] ORM или построитель запросов используется правильно
+- [ ] Запросы к Supabase правильно очищаются
 
-### 4. Authentication & Authorization
+### 4. Аутентификация и авторизация
 
-#### JWT Token Handling
+#### Работа с JWT-токенами
 ```typescript
-// ❌ WRONG: localStorage (vulnerable to XSS)
+// ❌ НЕПРАВИЛЬНО: localStorage (уязвим к XSS)
 localStorage.setItem('token', token)
 
-// ✅ CORRECT: httpOnly cookies
+// ✅ ПРАВИЛЬНО: cookie с флагом httpOnly
 res.setHeader('Set-Cookie',
   `token=${token}; HttpOnly; Secure; SameSite=Strict; Max-Age=3600`)
 ```
 
-#### Authorization Checks
+#### Проверки авторизации
 ```typescript
 export async function deleteUser(userId: string, requesterId: string) {
-  // ALWAYS verify authorization first
+  // ВСЕГДА сначала проверяйте авторизацию
   const requester = await db.users.findUnique({
     where: { id: requesterId }
   })
@@ -162,41 +162,41 @@ export async function deleteUser(userId: string, requesterId: string) {
     )
   }
 
-  // Proceed with deletion
+  // Продолжить удаление
   await db.users.delete({ where: { id: userId } })
 }
 ```
 
 #### Row Level Security (Supabase)
 ```sql
--- Enable RLS on all tables
+-- Включить RLS на всех таблицах
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
--- Users can only view their own data
+-- Пользователи видят только свои данные
 CREATE POLICY "Users view own data"
   ON users FOR SELECT
   USING (auth.uid() = id);
 
--- Users can only update their own data
+-- Пользователи изменяют только свои данные
 CREATE POLICY "Users update own data"
   ON users FOR UPDATE
   USING (auth.uid() = id);
 ```
 
-#### Verification Steps
-- [ ] Tokens stored in httpOnly cookies (not localStorage)
-- [ ] Authorization checks before sensitive operations
-- [ ] Row Level Security enabled in Supabase
-- [ ] Role-based access control implemented
-- [ ] Session management secure
+#### Что проверить
+- [ ] Токены хранятся в cookie с httpOnly (а не в localStorage)
+- [ ] Авторизация проверяется перед чувствительными операциями
+- [ ] В Supabase включена Row Level Security
+- [ ] Реализован доступ на основе ролей
+- [ ] Управление сессиями безопасно
 
-### 5. XSS Prevention
+### 5. Защита от XSS
 
-#### Sanitize HTML
+#### Очищайте HTML
 ```typescript
 import DOMPurify from 'isomorphic-dompurify'
 
-// ALWAYS sanitize user-provided HTML
+// ВСЕГДА очищайте HTML от пользователя
 function renderUserContent(html: string) {
   const clean = DOMPurify.sanitize(html, {
     ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'p'],
@@ -224,15 +224,15 @@ const securityHeaders = [
 ]
 ```
 
-#### Verification Steps
-- [ ] User-provided HTML sanitized
-- [ ] CSP headers configured
-- [ ] No unvalidated dynamic content rendering
-- [ ] React's built-in XSS protection used
+#### Что проверить
+- [ ] HTML от пользователя очищается
+- [ ] Заголовки CSP настроены
+- [ ] Нет вывода непроверенного динамического содержимого
+- [ ] Используется встроенная защита React от XSS
 
-### 6. CSRF Protection
+### 6. Защита от CSRF
 
-#### CSRF Tokens
+#### CSRF-токены
 ```typescript
 import { csrf } from '@/lib/csrf'
 
@@ -246,71 +246,71 @@ export async function POST(request: Request) {
     )
   }
 
-  // Process request
+  // Обработать запрос
 }
 ```
 
-#### SameSite Cookies
+#### Cookie с SameSite
 ```typescript
 res.setHeader('Set-Cookie',
   `session=${sessionId}; HttpOnly; Secure; SameSite=Strict`)
 ```
 
-#### Verification Steps
-- [ ] CSRF tokens on state-changing operations
-- [ ] SameSite=Strict on all cookies
-- [ ] Double-submit cookie pattern implemented
+#### Что проверить
+- [ ] CSRF-токены на операциях, меняющих состояние
+- [ ] SameSite=Strict на всех cookie
+- [ ] Реализован приём double-submit cookie
 
-### 7. Rate Limiting
+### 7. Ограничение частоты запросов
 
-#### API Rate Limiting
+#### Ограничение для API
 ```typescript
 import rateLimit from 'express-rate-limit'
 
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window
+  windowMs: 15 * 60 * 1000, // 15 минут
+  max: 100, // 100 запросов за окно
   message: 'Too many requests'
 })
 
-// Apply to routes
+// Применить к маршрутам
 app.use('/api/', limiter)
 ```
 
-#### Expensive Operations
+#### Дорогие операции
 ```typescript
-// Aggressive rate limiting for searches
+// Жёсткое ограничение для поиска
 const searchLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // 10 requests per minute
+  windowMs: 60 * 1000, // 1 минута
+  max: 10, // 10 запросов в минуту
   message: 'Too many search requests'
 })
 
 app.use('/api/search', searchLimiter)
 ```
 
-#### Verification Steps
-- [ ] Rate limiting on all API endpoints
-- [ ] Stricter limits on expensive operations
-- [ ] IP-based rate limiting
-- [ ] User-based rate limiting (authenticated)
+#### Что проверить
+- [ ] Ограничение частоты на всех API-эндпоинтах
+- [ ] Более строгие ограничения для дорогих операций
+- [ ] Ограничение по IP
+- [ ] Ограничение по пользователю (для аутентифицированных)
 
-### 8. Sensitive Data Exposure
+### 8. Раскрытие чувствительных данных
 
-#### Logging
+#### Логирование
 ```typescript
-// ❌ WRONG: Logging sensitive data
+// ❌ НЕПРАВИЛЬНО: в лог попадают чувствительные данные
 console.log('User login:', { email, password })
 console.log('Payment:', { cardNumber, cvv })
 
-// ✅ CORRECT: Redact sensitive data
+// ✅ ПРАВИЛЬНО: скрывать чувствительные данные
 console.log('User login:', { email, userId })
 console.log('Payment:', { last4: card.last4, userId })
 ```
 
-#### Error Messages
+#### Сообщения об ошибках
 ```typescript
-// ❌ WRONG: Exposing internal details
+// ❌ НЕПРАВИЛЬНО: раскрываются внутренние детали
 catch (error) {
   return NextResponse.json(
     { error: error.message, stack: error.stack },
@@ -318,7 +318,7 @@ catch (error) {
   )
 }
 
-// ✅ CORRECT: Generic error messages
+// ✅ ПРАВИЛЬНО: общие сообщения об ошибках
 catch (error) {
   console.error('Internal error:', error)
   return NextResponse.json(
@@ -328,15 +328,15 @@ catch (error) {
 }
 ```
 
-#### Verification Steps
-- [ ] No passwords, tokens, or secrets in logs
-- [ ] Error messages generic for users
-- [ ] Detailed errors only in server logs
-- [ ] No stack traces exposed to users
+#### Что проверить
+- [ ] Нет паролей, токенов и секретов в логах
+- [ ] Пользователь видит общие сообщения об ошибках
+- [ ] Подробности ошибок — только в серверных логах
+- [ ] Пользователю не показываются стектрейсы
 
-### 9. Blockchain Security (Solana)
+### 9. Безопасность блокчейна (Solana)
 
-#### Wallet Verification
+#### Проверка кошелька
 ```typescript
 import { verify } from '@solana/web3.js'
 
@@ -358,20 +358,20 @@ async function verifyWalletOwnership(
 }
 ```
 
-#### Transaction Verification
+#### Проверка транзакции
 ```typescript
 async function verifyTransaction(transaction: Transaction) {
-  // Verify recipient
+  // Проверить получателя
   if (transaction.to !== expectedRecipient) {
     throw new Error('Invalid recipient')
   }
 
-  // Verify amount
+  // Проверить сумму
   if (transaction.amount > maxAmount) {
     throw new Error('Amount exceeds limit')
   }
 
-  // Verify user has sufficient balance
+  // Проверить, что у пользователя достаточно средств
   const balance = await getBalance(transaction.from)
   if (balance < transaction.amount) {
     throw new Error('Insufficient balance')
@@ -381,56 +381,56 @@ async function verifyTransaction(transaction: Transaction) {
 }
 ```
 
-#### Verification Steps
-- [ ] Wallet signatures verified
-- [ ] Transaction details validated
-- [ ] Balance checks before transactions
-- [ ] No blind transaction signing
+#### Что проверить
+- [ ] Подписи кошельков проверяются
+- [ ] Детали транзакций проверяются
+- [ ] Баланс проверяется перед транзакциями
+- [ ] Нет «слепого» подписания транзакций
 
-### 10. Dependency Security
+### 10. Безопасность зависимостей
 
-#### Regular Updates
+#### Регулярные обновления
 ```bash
-# Check for vulnerabilities
+# Проверить уязвимости
 npm audit
 
-# Fix automatically fixable issues
+# Автоматически исправить то, что можно
 npm audit fix
 
-# Update dependencies
+# Обновить зависимости
 npm update
 
-# Check for outdated packages
+# Найти устаревшие пакеты
 npm outdated
 ```
 
-#### Lock Files
+#### Lock-файлы
 ```bash
-# ALWAYS commit lock files
+# ВСЕГДА коммитьте lock-файлы
 git add package-lock.json
 
-# Use in CI/CD for reproducible builds
-npm ci  # Instead of npm install
+# В CI/CD — для воспроизводимых сборок
+npm ci  # Вместо npm install
 ```
 
-#### Verification Steps
-- [ ] Dependencies up to date
-- [ ] No known vulnerabilities (npm audit clean)
-- [ ] Lock files committed
-- [ ] Dependabot enabled on GitHub
-- [ ] Regular security updates
+#### Что проверить
+- [ ] Зависимости обновлены
+- [ ] Нет известных уязвимостей (npm audit чист)
+- [ ] Lock-файлы закоммичены
+- [ ] На GitHub включён Dependabot
+- [ ] Регулярные обновления безопасности
 
-## Security Testing
+## Тестирование безопасности
 
-### Automated Security Tests
+### Автоматические тесты безопасности
 ```typescript
-// Test authentication
+// Проверка аутентификации
 test('requires authentication', async () => {
   const response = await fetch('/api/protected')
   expect(response.status).toBe(401)
 })
 
-// Test authorization
+// Проверка авторизации
 test('requires admin role', async () => {
   const response = await fetch('/api/admin', {
     headers: { Authorization: `Bearer ${userToken}` }
@@ -438,7 +438,7 @@ test('requires admin role', async () => {
   expect(response.status).toBe(403)
 })
 
-// Test input validation
+// Проверка валидации ввода
 test('rejects invalid input', async () => {
   const response = await fetch('/api/users', {
     method: 'POST',
@@ -447,7 +447,7 @@ test('rejects invalid input', async () => {
   expect(response.status).toBe(400)
 })
 
-// Test rate limiting
+// Проверка ограничения частоты
 test('enforces rate limits', async () => {
   const requests = Array(101).fill(null).map(() =>
     fetch('/api/endpoint')
@@ -460,35 +460,35 @@ test('enforces rate limits', async () => {
 })
 ```
 
-## Pre-Deployment Security Checklist
+## Чек-лист безопасности перед развёртыванием
 
-Before ANY production deployment:
+Перед ЛЮБЫМ развёртыванием в продакшен:
 
-- [ ] **Secrets**: No hardcoded secrets, all in env vars
-- [ ] **Input Validation**: All user inputs validated
-- [ ] **SQL Injection**: All queries parameterized
-- [ ] **XSS**: User content sanitized
-- [ ] **CSRF**: Protection enabled
-- [ ] **Authentication**: Proper token handling
-- [ ] **Authorization**: Role checks in place
-- [ ] **Rate Limiting**: Enabled on all endpoints
-- [ ] **HTTPS**: Enforced in production
-- [ ] **Security Headers**: CSP, X-Frame-Options configured
-- [ ] **Error Handling**: No sensitive data in errors
-- [ ] **Logging**: No sensitive data logged
-- [ ] **Dependencies**: Up to date, no vulnerabilities
-- [ ] **Row Level Security**: Enabled in Supabase
-- [ ] **CORS**: Properly configured
-- [ ] **File Uploads**: Validated (size, type)
-- [ ] **Wallet Signatures**: Verified (if blockchain)
+- [ ] **Секреты**: нет секретов в коде, всё в переменных окружения
+- [ ] **Проверка ввода**: весь пользовательский ввод проверяется
+- [ ] **SQL-инъекции**: все запросы параметризованы
+- [ ] **XSS**: пользовательское содержимое очищается
+- [ ] **CSRF**: защита включена
+- [ ] **Аутентификация**: токены обрабатываются правильно
+- [ ] **Авторизация**: проверки ролей на месте
+- [ ] **Ограничение частоты**: включено на всех эндпоинтах
+- [ ] **HTTPS**: обязателен в продакшене
+- [ ] **Заголовки безопасности**: настроены CSP, X-Frame-Options
+- [ ] **Обработка ошибок**: нет чувствительных данных в ошибках
+- [ ] **Логирование**: чувствительные данные не логируются
+- [ ] **Зависимости**: обновлены, без уязвимостей
+- [ ] **Row Level Security**: включена в Supabase
+- [ ] **CORS**: настроен правильно
+- [ ] **Загрузка файлов**: проверяется (размер, тип)
+- [ ] **Подписи кошельков**: проверяются (если есть блокчейн)
 
-## Resources
+## Материалы
 
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-- [Next.js Security](https://nextjs.org/docs/security)
-- [Supabase Security](https://supabase.com/docs/guides/auth)
+- [Безопасность в Next.js](https://nextjs.org/docs/security)
+- [Безопасность в Supabase](https://supabase.com/docs/guides/auth)
 - [Web Security Academy](https://portswigger.net/web-security)
 
 ---
 
-**Remember**: Security is not optional. One vulnerability can compromise the entire platform. When in doubt, err on the side of caution.
+**Помните**: безопасность не опциональна. Одна уязвимость может скомпрометировать всю платформу. Если сомневаетесь — выбирайте более осторожный вариант.

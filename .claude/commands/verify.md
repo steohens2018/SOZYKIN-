@@ -1,52 +1,52 @@
 ---
-description: Verify the site still works - syntax-check inline JS, smoke-load index.html in headless Chromium, and run security checks on the diff.
+description: Проверить, что сайт работает — синтаксис встроенного JS, загрузка index.html в headless Chromium и проверка безопасности изменений.
 ---
 
-# Verification Command
+# Команда проверки
 
-Run verification on the current state of `index.html`.
+Проверить текущее состояние `index.html`.
 
-## Instructions
+## Инструкции
 
-Execute in this order:
+Выполнять в таком порядке:
 
-1. **Script and browser check**
-   - Run `node .claude/scripts/verify.mjs`
-   - It syntax-checks every inline `<script>` block, then (if Playwright is installed)
-     loads the page in headless Chromium and reports uncaught errors and `console.error` output.
-   - `NETWORK` lines for CDN or Google Fonts requests are environment-dependent (offline,
-     proxy); mention them but don't fail on them.
-   - If it reports `SYNTAX` or `ERROR` lines, report them and STOP.
+1. **Проверка скриптов и браузера**
+   - Запустить `node .claude/scripts/verify.mjs`
+   - Скрипт проверяет синтаксис каждого встроенного блока `<script>`, а затем (если установлен Playwright)
+     открывает страницу в headless Chromium и сообщает о необработанных ошибках и выводе `console.error`.
+   - Строки `NETWORK` о запросах к CDN или Google Fonts зависят от окружения (нет сети, прокси);
+     упомянуть их, но не считать провалом.
+   - Если есть строки `SYNTAX` или `ERROR`, сообщить о них и ОСТАНОВИТЬСЯ.
 
-2. **Security audit of the diff** (`git diff HEAD -- index.html`)
-   - No API keys, tokens or other secrets committed (look for `gsk_`, `sk-`, `Bearer ` followed by a literal)
-   - Every value interpolated into `innerHTML` or a template string that becomes HTML goes through `escapeHtml()`
-   - New external scripts are pinned to an exact version on cdnjs (like pdf.js and mammoth today)
-   - New `fetch()` targets are HTTPS and only receive the user's API key when they are that key's provider
+2. **Проверка безопасности изменений** (`git diff HEAD -- index.html`)
+   - В код не попали API-ключи, токены и другие секреты (искать `gsk_`, `sk-`, `Bearer ` с литералом после него)
+   - Каждое значение, вставляемое в `innerHTML` или в шаблонную строку, которая становится HTML, проходит через `escapeHtml()`
+   - Новые внешние скрипты подключены с cdnjs с точно указанной версией (как сейчас pdf.js и mammoth)
+   - Новые адреса `fetch()` используют HTTPS, а API-ключ пользователя получают только если это провайдер этого ключа
 
-3. **Debug output audit**
-   - New `console.log` calls in the diff
+3. **Проверка отладочного вывода**
+   - Новые вызовы `console.log` в изменениях
 
-4. **Git status**
-   - Uncommitted changes and files modified since the last commit
+4. **Состояние git**
+   - Незакоммиченные изменения и файлы, изменённые после последнего коммита
 
-## Output
+## Отчёт
 
 ```
-VERIFICATION: [PASS/FAIL]
+ПРОВЕРКА: [PASS/FAIL]
 
-Syntax:   [OK/X errors]
-Browser:  [OK/X errors/skipped]
-Security: [OK/X issues]
-Logs:     [OK/X console.logs]
+Синтаксис:    [OK/X ошибок]
+Браузер:      [OK/X ошибок/пропущено]
+Безопасность: [OK/X проблем]
+Логи:         [OK/X console.log]
 
-Ready for PR: [YES/NO]
+Готово к PR: [ДА/НЕТ]
 ```
 
-If anything critical is found, list it with a suggested fix.
+Если найдено что-то критичное, перечислить с предложением исправления.
 
-## Arguments
+## Аргументы
 
-$ARGUMENTS can be:
-- `quick` - Step 1 only, with `--no-browser`
-- `full` - All steps (default)
+$ARGUMENTS может быть:
+- `quick` — только шаг 1, с флагом `--no-browser`
+- `full` — все шаги (по умолчанию)

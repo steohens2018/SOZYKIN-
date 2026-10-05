@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Static checks for the single-file site (index.html).
-//   1. Syntax-check every inline <script> block.
-//   2. If Playwright is installed, load the page in headless Chromium and
-//      report uncaught errors and console.error output (CDN/network failures
-//      are reported separately, since they depend on the environment).
-// Usage: node .claude/scripts/verify.mjs [path/to/index.html] [--no-browser]
+// Статические проверки сайта из одного файла (index.html).
+//   1. Проверка синтаксиса каждого встроенного блока <script>.
+//   2. Если установлен Playwright — загрузка страницы в headless Chromium и
+//      вывод необработанных ошибок и console.error (сбои CDN и сети выводятся
+//      отдельно, потому что зависят от окружения).
+// Запуск: node .claude/scripts/verify.mjs [путь/к/index.html] [--no-browser]
 import { readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -18,23 +18,23 @@ const html = readFileSync(file, 'utf8');
 
 let failed = false;
 
-// 1. Inline script syntax
+// 1. Синтаксис встроенных скриптов
 const re = /<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/gi;
 let m, checked = 0;
 while ((m = re.exec(html))) {
-  if (/type=["'](?!text\/javascript|module)/i.test(m[1])) continue; // JSON-LD etc.
+  if (/type=["'](?!text\/javascript|module)/i.test(m[1])) continue; // JSON-LD и т. п.
   checked++;
   const line = html.slice(0, m.index).split('\n').length;
   try {
     new vm.Script(m[2], { filename: `${basename(file)}:${line}` });
   } catch (e) {
     failed = true;
-    console.error(`SYNTAX  ${basename(file)} script at line ${line}: ${e.message}`);
+    console.error(`SYNTAX  ${basename(file)}, скрипт на строке ${line}: ${e.message}`);
   }
 }
-console.log(`Syntax:  ${checked} inline script(s) checked`);
+console.log(`Синтаксис: проверено встроенных скриптов — ${checked}`);
 
-// 2. Browser smoke test
+// 2. Быстрая проверка в браузере
 async function loadPlaywright() {
   for (const from of [process.cwd() + '/', import.meta.url]) {
     try { return createRequire(from)('playwright'); } catch {}
@@ -50,7 +50,7 @@ async function loadPlaywright() {
 if (!skipBrowser) {
   const pw = await loadPlaywright();
   if (!pw) {
-    console.log('Browser: skipped (playwright not installed; npm i -g playwright to enable)');
+    console.log('Браузер:   пропущено (Playwright не установлен; включить: npm i -g playwright)');
   } else {
     const browser = await pw.chromium.launch().catch(() =>
       pw.chromium.launch({ executablePath: '/opt/pw-browsers/chromium' }));
@@ -58,7 +58,7 @@ if (!skipBrowser) {
     const pageErrors = [], consoleErrors = [], networkErrors = [];
     page.on('pageerror', e => pageErrors.push(e.message));
     page.on('console', msg => {
-      // Failed resource loads are already reported via requestfailed below.
+      // Неудачные загрузки ресурсов и так выводятся ниже через requestfailed.
       if (msg.type() === 'error' && !msg.text().startsWith('Failed to load resource')) consoleErrors.push(msg.text());
     });
     page.on('requestfailed', r => networkErrors.push(`${r.url()} (${r.failure()?.errorText})`));
@@ -67,7 +67,7 @@ if (!skipBrowser) {
     const title = await page.title();
     await browser.close();
 
-    console.log(`Browser: loaded "${title}"`);
+    console.log(`Браузер:   загружено «${title}»`);
     for (const e of pageErrors) console.error(`ERROR   ${e}`);
     for (const e of consoleErrors) console.error(`CONSOLE ${e}`);
     for (const e of networkErrors) console.log(`NETWORK ${e}`);
@@ -75,5 +75,5 @@ if (!skipBrowser) {
   }
 }
 
-console.log(failed ? 'VERIFY:  FAIL' : 'VERIFY:  PASS');
+console.log(failed ? 'ПРОВЕРКА: FAIL' : 'ПРОВЕРКА: PASS');
 process.exit(failed ? 1 : 0);

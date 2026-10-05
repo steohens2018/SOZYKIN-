@@ -1,112 +1,112 @@
 ---
-description: Restate requirements, assess risks, and create step-by-step implementation plan. WAIT for user CONFIRM before touching any code.
+description: Переформулировать требования, оценить риски и составить пошаговый план реализации. ЖДАТЬ ПОДТВЕРЖДЕНИЯ пользователя, прежде чем трогать код.
 ---
 
-# Plan Command
+# Команда Plan
 
-This command invokes the **planner** agent to create a comprehensive implementation plan before writing any code.
+Эта команда вызывает агента **planner**, который составляет подробный план реализации до того, как будет написана хоть одна строка кода.
 
-## What This Command Does
+## Что делает команда
 
-1. **Restate Requirements** - Clarify what needs to be built
-2. **Identify Risks** - Surface potential issues and blockers
-3. **Create Step Plan** - Break down implementation into phases
-4. **Wait for Confirmation** - MUST receive user approval before proceeding
+1. **Переформулирует требования** — уточняет, что именно нужно сделать
+2. **Выявляет риски** — находит возможные проблемы и препятствия
+3. **Составляет пошаговый план** — разбивает реализацию на этапы
+4. **Ждёт подтверждения** — ОБЯЗАТЕЛЬНО получает одобрение пользователя, прежде чем продолжать
 
-## When to Use
+## Когда использовать
 
-Use `/plan` when:
-- Starting a new feature
-- Making significant architectural changes
-- Working on complex refactoring
-- Multiple files/components will be affected
-- Requirements are unclear or ambiguous
+Используйте `/plan`, когда:
+- Начинаете новую функцию
+- Вносите заметные архитектурные изменения
+- Делаете сложный рефакторинг
+- Изменения затронут несколько файлов или компонентов
+- Требования неясны или двусмысленны
 
-## How It Works
+## Как это работает
 
-The planner agent will:
+Агент planner:
 
-1. **Analyze the request** and restate requirements in clear terms
-2. **Break down into phases** with specific, actionable steps
-3. **Identify dependencies** between components
-4. **Assess risks** and potential blockers
-5. **Estimate complexity** (High/Medium/Low)
-6. **Present the plan** and WAIT for your explicit confirmation
+1. **Анализирует запрос** и переформулирует требования понятным языком
+2. **Разбивает работу на этапы** с конкретными, выполнимыми шагами
+3. **Определяет зависимости** между компонентами
+4. **Оценивает риски** и возможные препятствия
+5. **Оценивает сложность** (высокая/средняя/низкая)
+6. **Показывает план** и ЖДЁТ вашего явного подтверждения
 
-## Example Usage
+## Пример использования
 
 ```
-User: /plan I need to add real-time notifications when markets resolve
+Пользователь: /plan Нужно добавить уведомления в реальном времени, когда рынки закрываются
 
-Agent (planner):
-# Implementation Plan: Real-Time Market Resolution Notifications
+Агент (planner):
+# План реализации: уведомления о закрытии рынков в реальном времени
 
-## Requirements Restatement
-- Send notifications to users when markets they're watching resolve
-- Support multiple notification channels (in-app, email, webhook)
-- Ensure notifications are delivered reliably
-- Include market outcome and user's position result
+## Требования
+- Отправлять пользователям уведомления, когда закрываются рынки, за которыми они следят
+- Поддержать несколько каналов уведомлений (в приложении, email, webhook)
+- Обеспечить надёжную доставку уведомлений
+- Включать в уведомление исход рынка и результат позиции пользователя
 
-## Implementation Phases
+## Этапы реализации
 
-### Phase 1: Database Schema
-- Add notifications table with columns: id, user_id, market_id, type, status, created_at
-- Add user_notification_preferences table for channel preferences
-- Create indexes on user_id and market_id for performance
+### Этап 1: Схема базы данных
+- Добавить таблицу notifications со столбцами: id, user_id, market_id, type, status, created_at
+- Добавить таблицу user_notification_preferences для выбора каналов
+- Создать индексы по user_id и market_id для производительности
 
-### Phase 2: Notification Service
-- Create notification service in lib/notifications.ts
-- Implement notification queue using BullMQ/Redis
-- Add retry logic for failed deliveries
-- Create notification templates
+### Этап 2: Сервис уведомлений
+- Создать сервис уведомлений в lib/notifications.ts
+- Реализовать очередь уведомлений на BullMQ/Redis
+- Добавить повторные попытки при сбоях доставки
+- Создать шаблоны уведомлений
 
-### Phase 3: Integration Points
-- Hook into market resolution logic (when status changes to "resolved")
-- Query all users with positions in market
-- Enqueue notifications for each user
+### Этап 3: Точки интеграции
+- Подключиться к логике закрытия рынка (когда статус меняется на "resolved")
+- Найти всех пользователей с позициями в рынке
+- Поставить в очередь уведомление для каждого пользователя
 
-### Phase 4: Frontend Components
-- Create NotificationBell component in header
-- Add NotificationList modal
-- Implement real-time updates via Supabase subscriptions
-- Add notification preferences page
+### Этап 4: Компоненты интерфейса
+- Создать компонент NotificationBell в шапке
+- Добавить модальное окно NotificationList
+- Реализовать обновления в реальном времени через подписки Supabase
+- Добавить страницу настроек уведомлений
 
-## Dependencies
-- Redis (for queue)
-- Email service (SendGrid/Resend)
-- Supabase real-time subscriptions
+## Зависимости
+- Redis (для очереди)
+- Почтовый сервис (SendGrid/Resend)
+- Подписки Supabase в реальном времени
 
-## Risks
-- HIGH: Email deliverability (SPF/DKIM required)
-- MEDIUM: Performance with 1000+ users per market
-- MEDIUM: Notification spam if markets resolve frequently
-- LOW: Real-time subscription overhead
+## Риски
+- ВЫСОКИЙ: доставляемость писем (нужны SPF/DKIM)
+- СРЕДНИЙ: производительность при 1000+ пользователей на рынок
+- СРЕДНИЙ: спам уведомлениями, если рынки закрываются часто
+- НИЗКИЙ: накладные расходы на подписки в реальном времени
 
-## Estimated Complexity: MEDIUM
-- Backend: 4-6 hours
-- Frontend: 3-4 hours
-- Testing: 2-3 hours
-- Total: 9-13 hours
+## Оценка сложности: СРЕДНЯЯ
+- Бэкенд: 4–6 часов
+- Фронтенд: 3–4 часа
+- Тестирование: 2–3 часа
+- Итого: 9–13 часов
 
-**WAITING FOR CONFIRMATION**: Proceed with this plan? (yes/no/modify)
+**ЖДУ ПОДТВЕРЖДЕНИЯ**: Продолжить по этому плану? (да/нет/изменить)
 ```
 
-## Important Notes
+## Важно
 
-**CRITICAL**: The planner agent will **NOT** write any code until you explicitly confirm the plan with "yes" or "proceed" or similar affirmative response.
+**КРИТИЧНО**: агент planner **НЕ** будет писать код, пока вы явно не подтвердите план словами «да», «продолжай» или похожим согласием.
 
-If you want changes, respond with:
-- "modify: [your changes]"
-- "different approach: [alternative]"
-- "skip phase 2 and do phase 3 first"
+Если нужны изменения, ответьте, например:
+- «изменить: [ваши изменения]»
+- «другой подход: [альтернатива]»
+- «пропусти этап 2 и сначала сделай этап 3»
 
-## Integration with Other Commands
+## Связь с другими командами
 
-After planning:
-- Implement, then run `/verify`
-- Use the **code-reviewer** agent to review the completed implementation
+После планирования:
+- Реализуйте план, затем запустите `/verify`
+- Проверьте готовую реализацию агентом **code-reviewer**
 
-## Related Agents
+## Связанные агенты
 
-This command invokes the `planner` agent located at:
+Команда вызывает агента `planner`, который находится здесь:
 `.claude/agents/planner.md`

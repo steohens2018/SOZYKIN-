@@ -1,56 +1,56 @@
-# Checkpoint Command
+# Команда Checkpoint
 
-Create or verify a checkpoint in your workflow.
+Создать контрольную точку в работе или сверить с ней текущее состояние.
 
-## Usage
+## Использование
 
-`/checkpoint [create|verify|list] [name]`
+`/checkpoint [create|verify|list] [название]`
 
-## Create Checkpoint
+## Создание контрольной точки
 
-When creating a checkpoint:
+При создании контрольной точки:
 
-1. Run `/verify quick` to ensure current state is clean
-2. Create a git stash or commit with checkpoint name
-3. Log checkpoint to `.claude/checkpoints.log`:
+1. Запустить `/verify quick`, чтобы убедиться, что текущее состояние чистое
+2. Создать git stash или коммит с названием контрольной точки
+3. Записать контрольную точку в `.claude/checkpoints.log`:
 
 ```bash
 echo "$(date +%Y-%m-%d-%H:%M) | $CHECKPOINT_NAME | $(git rev-parse --short HEAD)" >> .claude/checkpoints.log
 ```
 
-4. Report checkpoint created
+4. Сообщить, что контрольная точка создана
 
-## Verify Checkpoint
+## Сверка с контрольной точкой
 
-When verifying against a checkpoint:
+При сверке с контрольной точкой:
 
-1. Read checkpoint from log
-2. Compare current state to checkpoint:
-   - Files added since checkpoint
-   - Files modified since checkpoint (`git diff --stat <sha>`)
-   - `/verify` result now vs then
+1. Прочитать контрольную точку из журнала
+2. Сравнить текущее состояние с ней:
+   - Файлы, добавленные после контрольной точки
+   - Файлы, изменённые после контрольной точки (`git diff --stat <sha>`)
+   - Результат `/verify` сейчас и тогда
 
-3. Report:
+3. Отчёт:
 ```
-CHECKPOINT COMPARISON: $NAME
-============================
-Files changed: X
-Lines: +Y / -Z
-Verify: [PASS/FAIL]
+СРАВНЕНИЕ С КОНТРОЛЬНОЙ ТОЧКОЙ: $NAME
+=====================================
+Изменено файлов: X
+Строк: +Y / -Z
+Проверка: [PASS/FAIL]
 ```
 
-## List Checkpoints
+## Список контрольных точек
 
-Show all checkpoints with:
-- Name
-- Timestamp
-- Git SHA
-- Status (current, behind, ahead)
+Показать все контрольные точки:
+- Название
+- Время
+- SHA коммита
+- Состояние (текущая, позади, впереди)
 
-## Arguments
+## Аргументы
 
 $ARGUMENTS:
-- `create <name>` - Create named checkpoint
-- `verify <name>` - Verify against named checkpoint
-- `list` - Show all checkpoints
-- `clear` - Remove old checkpoints (keeps last 5)
+- `create <название>` — создать контрольную точку с названием
+- `verify <название>` — сверить с контрольной точкой
+- `list` — показать все контрольные точки
+- `clear` — удалить старые контрольные точки (оставить последние 5)
