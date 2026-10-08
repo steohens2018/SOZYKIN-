@@ -2411,27 +2411,13 @@ function requirementChecks(r){
 // =============================================================================
 // ЛОКАЛЬНЫЙ АНАЛИЗ — ГЛАВНАЯ ФУНКЦИЯ.
 //
-// Здесь реализованы 7 стилометрических метрик из исследования:
-//   1. BURSTINESS — вариативность длин предложений (главный сигнал ИИ)
-//   2. MATTR — лексическое разнообразие в скользящем окне
-//   3. AI MARKER DENSITY — плотность ИИ-клише на 100 слов
-//   4. UNIQUE BIGRAM RATIO — доля уникальных пар слов
-//   5. EM-DASH DENSITY — плотность тире (характерно для GPT-4+)
-//   6. КАНЦЕЛЯРИТ — частота «является», «данный», «который»
-//   7. FLESCH-KINCAID (формула Оборнева) — индекс читаемости
-//
-// Плюс детектор подозрительности и расчёт процентов оригинальности,
-// заимствований, цитирования и ИИ-контента.
-// =============================================================================
-// НОВЫЕ МЕТРИКИ v8.0 — лексическое разнообразие и закон Ципфа.
-// Источники: McCarthy & Jarvis (2010), Honoré (1979), Yule (1944), Brunet (1978).
-// Эти метрики показывают, насколько богат и разнообразен словарь автора.
-// У ИИ-текстов лексическое разнообразие систематически ниже, чем у людей.
+// Детектор подозрительности, цитирование, шаблонность, фрагменты и оценка
+// ИИ-генерации по стилю (откалиброванные метрики — ниже, в STYLE_METRICS).
 // =============================================================================
 
 // MTLD — Measure of Textual Lexical Diversity (McCarthy 2005).
 // Считает, через сколько слов в среднем «выгорает» лексическое разнообразие
-// до порога 0.72. У людей значение 85-130, у GPT-4 — 55-80.
+// до порога 0.72. Чем больше, тем богаче словарь.
 function mtld(tokens, threshold = 0.72){
   if (tokens.length < 50) return 0;
   function factorCount(arr){
@@ -2454,8 +2440,8 @@ function mtld(tokens, threshold = 0.72){
   return (fwd + bwd) / 2;
 }
 
-// HD-D — гипергеометрическое разнообразие. Ожидаемое количество разных слов
-// в случайной выборке размера 42. У людей 0.82-0.92, у LLM 0.70-0.80.
+// HD-D — гипергеометрическое разнообразие: ожидаемая доля разных слов
+// в случайной выборке из 42 слов.
 function hdd(tokens, sample = 42){
   if (tokens.length < sample) return 0;
   const N = tokens.length;
@@ -2480,22 +2466,7 @@ function hdd(tokens, sample = 42){
   return result;
 }
 
-// Honoré's R — учитывает hapax legomena (слова, встретившиеся ровно раз).
-// Богатый словарь даёт высокий R. У людей 1500-3000, у GPT — 600-1300.
-function honoreR(tokens){
-  if (!tokens.length) return 0;
-  const freq = {};
-  for (const w of tokens) freq[w] = (freq[w] || 0) + 1;
-  const V = Object.keys(freq).length;
-  const V1 = Object.values(freq).filter(c => c === 1).length;
-  const N = tokens.length;
-  const ratio = V1 / V;
-  if (ratio >= 0.999) return 99999;
-  return 100 * Math.log(N) / (1 - ratio);
-}
-
-// Yule's K — концентрация повторов. Чем выше, тем больше повторений.
-// У людей 80-180, у LLM 200-400 (повторяют чаще).
+// K Юла — концентрация повторов: чем выше, тем чаще повторяются одни слова.
 function yuleK(tokens){
   if (!tokens.length) return 0;
   const freq = {};
@@ -2508,60 +2479,125 @@ function yuleK(tokens){
   return 10000 * (s - N) / (N * N);
 }
 
-// Brunet's W — стабилен относительно длины текста.
-// У людей 9-11, у LLM 11-14.
-function brunetW(tokens){
-  const N = tokens.length;
-  const V = new Set(tokens).size;
-  if (N < 50 || V === 0) return 0;
-  return Math.pow(N, Math.pow(V, -0.165));
+// =============================================================================
+// ИИ-ДЕТЕКЦИЯ ПО СТИЛЮ — калибровка на размеченных работах.
+//
+// Прежняя модель (12 метрик с порогами «из литературы») исходила из того,
+// что у ИИ словарь беднее, чем у человека. На реальных работах оказалось
+// наоборот, и ИИ-статьи получали 7–11% («человек»). Калибровка — на 9
+// размеченных документах:
+//   — ИИ: 4 статьи 2025–2026 годов (2 юридические о БПЛА, 2 экономические);
+//   — люди: 5 курсовых и ВКР 2022–2025 годов, в том числе ВКР о БПЛА —
+//     та же тема, что у двух ИИ-статей.
+// У ИИ-текстов выше разнообразие словаря (HD-D, MTLD) и меньше повторов
+// (K Юла). Клише, канцелярит, вариативность длины предложений, R Оноре,
+// W Брюне и закон Ципфа ИИ от людей не отличали и в оценку не входят.
+//
+// Проверка на жанр — открытый набор AINL-Eval 2025 (52 тыс. русских научных
+// аннотаций, люди и модели GPT-4-Turbo, Llama 3.3, Gemma 2; github.com/
+// iis-research-team/AINL-Eval-2025). Человеческие аннотации по этим трём
+// метрикам похожи на человеческие курсовые, так что метрики не путают
+// «научный стиль» с ИИ. Но и модели этого набора по ним от людей почти не
+// отличаются (у GPT-4 словарь чуть богаче, у Llama и Gemma — беднее): оценка
+// ловит тексты, похожие на размеченные ИИ-работы, а не любой ИИ-текст.
+//
+// Проверка вне настройки: модель, настроенная только на двух юридических
+// ИИ-статьях, узнала обе экономические (68%). Человеческие работы,
+// исключённые из настройки по одной, получили 0–34%.
+//
+// ОГРАНИЧЕНИЯ. Калибровка по 9 документам, все ИИ-тексты — короткие статьи.
+// Высокий процент — повод присмотреться к тексту, а не доказательство.
+//
+// Как считается: основной текст режется на куски по ~300 слов, метрики
+// считаются для каждого куска, по каждой берётся медиана. Затем метрика
+// переводится в шкалу 0–1: 0 — как у типичной человеческой работы выборки,
+// 1 — как у типичного ИИ-текста (медианы групп). Итог — среднее метрик.
+// =============================================================================
+
+const STYLE_METRICS = [
+  { key: 'hdd',    name: 'Разнообразие словаря (HD-D)',     human: 0.885, ai: 0.93, digits: 3 },
+  { key: 'mtld',   name: 'Лексическое разнообразие (MTLD)', human: 130,   ai: 270,  digits: 0 },
+  { key: 'yule',   name: 'Концентрация повторов (K Юла)',   human: 80,    ai: 43,   digits: 0 }
+];
+// Доля служебных слов и запятые на предложение тоже разделяли выборку, но
+// это признаки жанра, а не ИИ: в открытом наборе AINL-Eval 2025 человеческие
+// научные аннотации по ним такие же, как ИИ-статьи (служебных 0.188 против
+// 0.175, запятых 1.36 против 1.17), а от курсовых далеки (0.25 и 2.25).
+// С ними модель назвала бы ИИ любую научную статью, написанную человеком.
+// Пороги вердикта. Подняты по сравнению с прежними 30/55: самая «гладкая»
+// человеческая курсовая при проверке вне настройки получила 34%.
+const AI_VERDICT_MIXED = 40;   // ниже — «человек»
+const AI_VERDICT_AI = 65;      // от этого значения — «ИИ»
+const STYLE_CHUNK_WORDS = 300;
+const aiVerdictFor = score => score < AI_VERDICT_MIXED ? 'human' : score < AI_VERDICT_AI ? 'mixed' : 'ai';
+
+// Основной текст: до заголовка списка литературы, без титульного листа,
+// заголовков, строк оглавления, аннотации и ключевых слов. Именно на нём
+// проводилась калибровка: список литературы и титульный лист сдвигают метрики.
+function mainBodyText(text){
+  const paras = text.split(/\n+/).map(s => s.trim()).filter(Boolean);
+  const biblio = /^(список\s+(использован\p{L}*\s+)?(источников|литературы)|библиографическ\p{L}*\s+список|литература\s*:?$)/iu;
+  const isToc = t => /[….]{3,}|\d\s*$/.test(t);
+  let cut = -1;
+  paras.forEach((p, i) => { if(p.length < 120 && !isToc(p) && biblio.test(p)) cut = i; });
+  const body = (cut > 0 ? paras.slice(0, cut) : paras)
+    .filter(p => p.length >= 80 && !isToc(p) && !/^(аннотация|ключевые слова)/i.test(p))
+    .join('\n');
+  // Если фильтр съел почти всё (текст вставлен без абзацев или разбит на
+  // короткие строки, как при копировании из PDF), берём текст целиком
+  return tokenize(body).length >= Math.max(100, tokenize(text).length * 0.4) ? body : text;
 }
 
-// Отклонение от закона Ципфа. У естественных текстов наклон log-log
-// распределения частот близок к -1, у LLM систематический сдвиг.
-function zipfDeviation(tokens){
-  const freq = {};
-  for (const t of tokens) freq[t] = (freq[t] || 0) + 1;
-  const sorted = Object.values(freq).sort((a,b) => b-a);
-  if (sorted.length < 30) return 0;
-  const M = Math.min(sorted.length, 1000);
-  let sx=0, sy=0, sxx=0, sxy=0, n=0;
-  for (let r=1; r<=M; r++){
-    const x = Math.log(r), y = Math.log(sorted[r-1]);
-    sx += x; sy += y; sxx += x*x; sxy += x*y; n++;
+// Куски по ~300 слов из целых предложений; короткий хвост — к последнему куску
+function styleChunks(text){
+  const chunks = [];
+  let current = [], words = 0;
+  for(const s of splitSentences(text)){
+    current.push(s);
+    words += tokenize(s).length;
+    if(words >= STYLE_CHUNK_WORDS){ chunks.push(current.join(' ')); current = []; words = 0; }
   }
-  const slope = (n*sxy - sx*sy) / (n*sxx - sx*sx);
-  return Math.abs(slope + 1); // расстояние от идеала -1
+  if(current.length){
+    if(chunks.length && words < STYLE_CHUNK_WORDS / 2) chunks[chunks.length - 1] += ' ' + current.join(' ');
+    else chunks.push(current.join(' '));
+  }
+  return chunks;
 }
 
-// Метрики словаря (TTR, R Оноре, K Юла, W Брюне, Ципф, уникальные пары)
-// сильно зависят от длины текста: в коротком тексте почти все слова
-// уникальны, в длинном доля уникальных падает сама собой. На целом тексте
-// курсовая в 6700 слов получала по TTR «100% ИИ», а ИИ-текст в 240 слов —
-// «0%». Поэтому считаем метрику на окнах по 300 слов и усредняем: так
-// тексты разной длины сравниваются на равных.
-const METRIC_WINDOW = 300;
-function windowedMetric(tokens, fn){
-  if(tokens.length < METRIC_WINDOW * 1.5) return fn(tokens);
-  const values = [];
-  for(let i = 0; i + METRIC_WINDOW <= tokens.length; i += METRIC_WINDOW){
-    const v = fn(tokens.slice(i, i + METRIC_WINDOW));
-    if(Number.isFinite(v) && v !== 0) values.push(v);
-  }
-  return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+function styleMetricsOf(text){
+  const tokens = tokenize(text);
+  const lemmas = tokens.map(pseudoLemma);
+  return {
+    hdd: hdd(lemmas) || null,
+    mtld: mtld(lemmas) || null,
+    yule: tokens.length >= 50 ? yuleK(lemmas) : null,
+  };
 }
 
-// Доля пар соседних слов, встретившихся один раз
-function uniqueBigramShare(tokens){
-  const bigrams = new Map();
-  for(let i = 0; i < tokens.length - 1; i++){
-    const bg = tokens[i] + ' ' + tokens[i + 1];
-    bigrams.set(bg, (bigrams.get(bg) || 0) + 1);
-  }
-  let unique = 0;
-  bigrams.forEach(v => { if(v === 1) unique++; });
-  return unique / (bigrams.size || 1);
+// Оценка стиля 0–1 и значения метрик (медианы по кускам)
+function styleScore(text){
+  const chunks = styleChunks(text);
+  const perChunk = chunks.map(styleMetricsOf);
+  const median = values => {
+    const s = values.filter(v => v != null && Number.isFinite(v)).sort((a, b) => a - b);
+    return s.length ? s[Math.floor(s.length / 2)] : null;
+  };
+  const metrics = STYLE_METRICS.map(m => {
+    const value = median(perChunk.map(p => p[m.key]));
+    const v = value == null ? null : Math.max(0, Math.min(1, (value - m.human) / (m.ai - m.human)));
+    return { ...m, value, v };
+  });
+  const used = metrics.filter(m => m.v != null);
+  return {
+    score: used.length ? used.reduce((s, m) => s + m.v, 0) / used.length : 0,
+    metrics,
+    used: used.length,
+    chunks: chunks.length
+  };
 }
+
+const formatStyleValue = (m, v) => v == null ? '—'
+  : m.percent ? (v * 100).toFixed(1) + '%' : v.toFixed(m.digits);
 
 // =============================================================================
 
@@ -2609,19 +2645,6 @@ function localAnalyze(text){
   // Простой TTR для совместимости с отчётом
   const ttr = new Set(tokens.map(t => pseudoLemma(t))).size / wordCount;
 
-  // 2.5. НОВЫЕ МЕТРИКИ v8.0 — лексическое разнообразие
-  // Эти метрики показывают, насколько богат словарь автора, и являются
-  // одними из самых надёжных признаков ИИ-генерации в академических текстах.
-  const lemmas = tokens.map(t => pseudoLemma(t));
-  const mtldScore = mtld(lemmas);
-  const hddScore = hdd(lemmas);
-  const honoreScore = windowedMetric(lemmas, honoreR);
-  const yuleScore = windowedMetric(lemmas, yuleK);
-  const brunetScore = windowedMetric(lemmas, brunetW);
-  const zipfDev = windowedMetric(lemmas, zipfDeviation);
-  // TTR в оценке — по окнам; общий TTR остаётся только для текста отчёта
-  const ttrWindowed = windowedMetric(lemmas, w => new Set(w).size / (w.length || 1));
-
   // 3. ПЛОТНОСТЬ МАРКЕРОВ ИИ — находим в тексте характерные ИИ-клише
   // Плотность — взвешенная: сильное клише = 1, обычная научная связка = 0.2
   const markers = countMarkers(text, AI_MARKERS);
@@ -2636,25 +2659,6 @@ function localAnalyze(text){
     return acc;
   }, {})).sort((a, b) => (b.strong - a.strong) || (b.count - a.count)).slice(0, 12);
 
-  // 4. UNIQUE BIGRAM RATIO — доля уникальных пар соседних слов.
-  // Низкая доля значит, что текст сильно повторяется в шаблонах.
-  const uniqueBigramRatio = windowedMetric(tokens, uniqueBigramShare);
-
-  // 5. EM-DASH DENSITY — плотность длинных тире на 10 предложений.
-  // GPT-4 и более новые модели характерно злоупотребляют тире.
-  const emDashes = (text.match(/—|–/g) || []).length;
-  const emDashDensity = emDashes / (sentenceCount / 10);
-
-  // 6. КАНЦЕЛЯРИТ — частота характерных бюрократических слов
-  // Считаем по токенам, а не регуляркой с \b: в JavaScript \b знает только
-  // латиницу, и /\bявля/ на русском тексте не находил ни одного слова.
-  const countPrefix = prefix => tokens.filter(t => t.startsWith(prefix)).length;
-  const yavlyaetsya = countPrefix('явля');
-  const dannyy = countPrefix('данн');
-  const kotoryy = countPrefix('котор');
-  // «который» — слово более частое в нормальном русском, поэтому весит вдвое меньше
-  const kanselyaritDensity = (yavlyaetsya + dannyy + kotoryy * 0.5) / wordCount;
-
   // 7. FLESCH-KINCAID для русского по формуле Оборнева:
   // FRE_ru = 206.835 − 1.52·ASL − 65.14·ASW
   // ASL — средняя длина предложения в словах
@@ -2665,79 +2669,31 @@ function localAnalyze(text){
   const averageSentenceLength = wordCount / sentenceCount;
   const fleschRu = 206.835 - 1.52 * averageSentenceLength - 65.14 * averageSyllablesPerWord;
 
-  // ИТОГОВЫЙ AI-СКОР v8.0 — комбинируем 12 метрик с весами.
-  // Каждая метрика преобразуется в значение 0..1 (1 = «точно ИИ»),
-  // потом считается взвешенное среднее с логистическим сглаживанием.
-  //
-  // Если метрику не на чем посчитать (MTLD короче 50 слов, HD-D короче 42,
-  // Ципф меньше 30 разных слов), её функция возвращает 0. Раньше этот ноль
-  // проходил проверку «меньше порога» и засчитывался как стопроцентный
-  // ИИ-признак — короткие тексты выглядели машинными. Теперь такие метрики
-  // получают v = null и в оценке не участвуют.
-  //
-  // name/value/rule — для разбивки «из чего сложился процент» в интерфейсе.
-  const pct = v => (v * 100).toFixed(0) + '%';
-  const features = [
-    { name: 'Вариативность длины предложений', value: burstiness.toFixed(2), rule: 'ИИ-признак ниже 0.55',
-      v: sentenceCount < 3 ? null : burstiness < 0.40 ? 1 : Math.max(0, (0.55 - burstiness) / 0.15), w: 0.12 },
-    { name: 'Доля уникальных слов (TTR)', value: pct(ttrWindowed), rule: 'ИИ-признак ниже 55%',
-      v: ttrWindowed < 0.42 ? 1 : Math.max(0, (0.55 - ttrWindowed) / 0.13), w: 0.08 },
-    { name: 'Лексическое разнообразие (MTLD)', value: mtldScore ? mtldScore.toFixed(0) : '—', rule: 'ИИ-признак ниже 95',
-      v: mtldScore === 0 ? null : mtldScore < 75 ? 1 : Math.max(0, (95 - mtldScore) / 20), w: 0.18 },
-    { name: 'Разнообразие выборки слов (HD-D)', value: hddScore ? hddScore.toFixed(2) : '—', rule: 'ИИ-признак ниже 0.85',
-      v: hddScore === 0 ? null : hddScore < 0.78 ? 1 : Math.max(0, (0.85 - hddScore) / 0.07), w: 0.10 },
-    { name: 'Редкие слова (R Оноре)', value: honoreScore.toFixed(0), rule: 'ИИ-признак ниже 1800',
-      v: honoreScore < 1200 ? 1 : Math.max(0, (1800 - honoreScore) / 600), w: 0.08 },
-    { name: 'Концентрация повторов (K Юла)', value: yuleScore.toFixed(0), rule: 'ИИ-признак выше 150',
-      v: yuleScore > 220 ? 1 : Math.max(0, (yuleScore - 150) / 70), w: 0.06 },
-    { name: 'ИИ-клише на 100 слов', value: markerDensity.toFixed(2), rule: 'сильное клише = 1, научная связка = 0.2',
-      v: Math.min(1, markerDensity / 1.0), w: 0.12 },
-    { name: 'Канцелярит на 100 слов', value: (kanselyaritDensity * 100).toFixed(1), rule: '«является», «данный», «который»',
-      v: Math.min(1, kanselyaritDensity / 0.045), w: 0.06 },
-    { name: 'Длинные тире на 10 предложений', value: emDashDensity.toFixed(1), rule: 'ИИ-признак от 4',
-      v: emDashDensity > 4 ? 1 : Math.max(0, emDashDensity / 4), w: 0.04 },
-    { name: 'Уникальные пары слов', value: pct(uniqueBigramRatio), rule: 'ИИ-признак ниже 85%',
-      v: uniqueBigramRatio < 0.75 ? 1 : Math.max(0, (0.85 - uniqueBigramRatio) / 0.10), w: 0.06 },
-    { name: 'Отклонение от закона Ципфа', value: zipfDev ? zipfDev.toFixed(3) : '—', rule: 'ИИ-признак ниже 0.08',
-      v: zipfDev === 0 ? null : zipfDev < 0.08 ? 1 : 0, w: 0.05 },
-    { name: 'Индекс Брюне (W)', value: brunetScore ? brunetScore.toFixed(1) : '—', rule: 'ИИ-признак выше 10',
-      v: brunetScore === 0 ? null : brunetScore > 11.5 ? 1 : Math.max(0, (brunetScore - 10) / 1.5), w: 0.05 }
-  ];
-
-  // Взвешенное среднее; метрики без значения (null/NaN) не учитываются
-  let totalWeight = 0, totalValue = 0;
-  for (const f of features){
-    if (f.v !== null && !isNaN(f.v) && isFinite(f.v)){
-      totalWeight += f.w;
-      totalValue += f.v * f.w;
-    }
-  }
-  const rawScore = totalWeight > 0 ? totalValue / totalWeight : 0;
-  // Логистическое сглаживание для убирания «хвостов»
-  const smoothedScore = 1 / (1 + Math.exp(-6 * (rawScore - 0.5)));
-  let aiScore = Math.round(smoothedScore * 100);
-
-  aiScore = Math.min(aiScore, 95);
-  // Нижняя граница по клише: больше одного сильного клише на 100 слов — это
-  // в 50 раз больше, чем в любой из проверенных человеческих работ. Метрики
-  // словаря на таком тексте могут «голосовать за человека», но клише — самый
-  // прямой признак, поэтому итог не опускается ниже порога вердикта «ИИ».
+  // ИИ-ОЦЕНКА ПО СТИЛЮ — откалиброванные метрики (см. STYLE_METRICS)
+  const body = mainBodyText(text);
+  const bodyWords = tokenize(body).length;
+  const style = styleScore(body);
+  let aiScore = Math.min(95, Math.round(style.score * 100));
+  // Нижняя граница по клише: больше одного сильного клише на 100 слов — в 50
+  // раз больше, чем в любой из проверенных человеческих работ. В реальных
+  // ИИ-текстах выборки клише не встретилось ни одного, так что правило ловит
+  // только самый небрежный ИИ-текст, зато людям не вредит.
   const CLICHE_FLOOR_DENSITY = 1;
-  const clicheFloor = strongClicheDensity >= CLICHE_FLOOR_DENSITY && aiScore < 55;
-  if(clicheFloor) aiScore = 55;
+  const clicheFloor = strongClicheDensity >= CLICHE_FLOOR_DENSITY && aiScore < AI_VERDICT_AI;
+  if(clicheFloor) aiScore = AI_VERDICT_AI;
   // На коротком тексте статистика слов ненадёжна — честно предупреждаем
   const AI_MIN_WORDS = 300;
-  const aiReliable = wordCount >= AI_MIN_WORDS;
-  const aiFeatures = features.map(f => {
-    const used = f.v !== null && isFinite(f.v);
-    return {
-      name: f.name, value: f.value, rule: f.rule, weight: Math.round(f.w * 100),
-      score: used ? Math.round(f.v * 100) : null,
-      // Сколько пунктов «сырого» балла (0–100) дала метрика
-      contribution: used && totalWeight > 0 ? Math.round(f.v * f.w / totalWeight * 1000) / 10 : 0
-    };
-  });
-  const aiVerdict = aiScore < 30 ? 'human' : aiScore < 55 ? 'mixed' : 'ai';
+  const aiReliable = bodyWords >= AI_MIN_WORDS;
+  const aiFeatures = style.metrics.map(m => ({
+    name: m.name,
+    value: formatStyleValue(m, m.value),
+    rule: `у людей ≈ ${formatStyleValue(m, m.human)}, у ИИ ≈ ${formatStyleValue(m, m.ai)}`,
+    weight: style.used ? Math.round(100 / style.used) : 0,
+    score: m.v == null ? null : Math.round(m.v * 100),
+    // Сколько процентных пунктов итога дала метрика
+    contribution: m.v == null ? 0 : Math.round(m.v / style.used * 1000) / 10
+  }));
+  const aiVerdict = aiVerdictFor(aiScore);
 
   // ЦИТИРОВАНИЕ — ищем кавычки и ГОСТ-ссылки [N], [N, с. NN]
   const quoteMatches = [...text.matchAll(/[«"][^«»""]{15,500}[»"]/g)];
@@ -2767,7 +2723,9 @@ function localAnalyze(text){
     const chunkTokens = tokenize(chunk);
     const chunkUniqueLemmas = new Set(chunkTokens.map(t => pseudoLemma(t)));
     const chunkTtr = chunkUniqueLemmas.size / (chunkTokens.length || 1);
-    const chunkMarkers = countMarkers(chunk, AI_MARKERS);
+    const chunkStrongHits = countMarkers(chunk, AI_MARKERS).hits.filter(h => h.weight >= MARKER_STRONG);
+    // Оценка стиля фрагмента — только если в нём хватает слов для статистики
+    const chunkStyle = chunkTokens.length >= 150 ? styleScore(chunk) : null;
     const chunkHasQuote = /[«"][^«»""]{15,}[»"]/.test(chunk) || /\[\d+/.test(chunk);
     const chunkShingleTokens = chunkTokens.filter(t => !STOP_RU.has(t)).map(pseudoLemma);
     const chunkShingles = getShingles(chunkShingleTokens, 3);
@@ -2788,18 +2746,17 @@ function localAnalyze(text){
       type = 'citation';
       confidence = 85;
       explanation = 'Содержит корректное оформление цитаты';
-    } else if(chunkMarkers.score >= 2 && chunkTtr < 0.45){
+    } else if(chunkStyle && chunkStyle.score * 100 >= AI_VERDICT_AI){
+      // Та же откалиброванная оценка стиля, что и для всего документа
       type = 'ai_generated';
-      // Больше клише и беднее словарь — выше уверенность
-      confidence = clamp(60 + (chunkMarkers.score - 2) * 5 + (0.45 - chunkTtr) * 100, 60, 85);
-      explanation = 'Высокая плотность ИИ-маркеров, низкое лексическое разнообразие';
-    } else if(chunkMarkers.score >= 3){
+      confidence = clamp(chunkStyle.score * 100, 65, 90);
+      const closest = chunkStyle.metrics.filter(m => m.v != null).sort((a, b) => b.v - a.v).slice(0, 2)
+        .map(m => m.name[0].toLowerCase() + m.name.slice(1));
+      explanation = 'Стиль фрагмента похож на ИИ-тексты: ' + closest.join(', ');
+    } else if(chunkStrongHits.length >= 2){
       type = 'ai_generated';
-      confidence = clamp(55 + (chunkMarkers.score - 3) * 5, 55, 75);
-      const strongHits = chunkMarkers.hits.filter(h => h.weight >= MARKER_STRONG);
-      explanation = strongHits.length
-        ? 'Обнаружены характерные ИИ-клише: ' + strongHits.slice(0, 3).map(h => h.text).join(', ')
-        : 'Очень много типовых связок: ' + chunkMarkers.hits.slice(0, 3).map(h => h.text).join(', ');
+      confidence = clamp(55 + (chunkStrongHits.length - 2) * 5, 55, 75);
+      explanation = 'Обнаружены характерные ИИ-клише: ' + chunkStrongHits.slice(0, 3).map(h => h.text).join(', ');
     } else if(chunkRepRate > 0.15){
       // Повторы внутри текста — не заимствование, а шаблонность стиля
       explanation = 'Повторяющиеся речевые шаблоны (высокая шаблонность)';
@@ -2827,12 +2784,13 @@ function localAnalyze(text){
     total_pages: pages,
     ai_verdict: aiVerdict,
     // Уверенность ниже на коротких текстах: статистике там не на что опереться
+    // Чем дальше итог от середины между порогами, тем увереннее вердикт
     ai_confidence: aiReliable
-      ? 50 + Math.floor(Math.min(burstiness * 30 + markerDensity * 10, 40))
-      : Math.min(40, 20 + Math.floor(wordCount / 15)),
+      ? Math.min(90, 50 + Math.round(Math.abs(aiScore - (AI_VERDICT_MIXED + AI_VERDICT_AI) / 2) * 0.8))
+      : Math.min(40, 20 + Math.floor(bodyWords / 15)),
     ai_reliable: aiReliable,
     ai_features: aiFeatures,
-    ai_raw_score: Math.round(rawScore * 100),
+    ai_raw_score: Math.round(style.score * 100),
     ai_cliche_floor: clicheFloor,
     ai_local_percent: aiScore,
     ai_strong_cliches: Math.round(strongClicheDensity * 100) / 100,
@@ -2847,23 +2805,23 @@ function localAnalyze(text){
       uniformity_score: burstiness < 0.35 ? 'high' : burstiness < 0.5 ? 'medium' : 'low',
       vocabulary_diversity: mattr < 0.6 ? 'low' : mattr < 0.72 ? 'medium' : 'high',
       sentence_length_variance: stdDev < 5 ? 'low' : stdDev < 10 ? 'medium' : 'high',
-      details: `Анализ выполнен локально по 7 метрикам (без обращения к серверу). ` +
-        `TTR = ${(ttr * 100).toFixed(1)}%, MATTR = ${(mattr * 100).toFixed(1)}%. ` +
-        `Burstiness = ${burstiness.toFixed(3)} (вариативность длин предложений). ` +
+      details: `Оценка ИИ-генерации — по ${style.used} метрикам стиля, откалиброванным на 9 размеченных ` +
+        `работах (без обращения к серверу). Основной текст — ${bodyWords} слов, кусков по ` +
+        `${STYLE_CHUNK_WORDS} слов: ${style.chunks}. ` +
+        `Справочно: MATTR = ${(mattr * 100).toFixed(1)}%, вариативность длины предложений = ${burstiness.toFixed(2)}, ` +
         `Flesch-Kincaid (русский) = ${fleschRu.toFixed(1)}. ` +
-        `Плотность ИИ-клише (взвешенная): ${markerDensity.toFixed(2)} на 100 слов. ` +
-        (aiScore > 55 ? 'Совокупность признаков указывает на возможную ИИ-генерацию.' :
-         aiScore > 30 ? 'Обнаружены отдельные признаки шаблонности.' :
-         'Текст демонстрирует вариативность, характерную для человеческого письма.')
+        (aiScore >= AI_VERDICT_AI ? 'Стиль ближе к ИИ-текстам выборки, чем к человеческим работам.' :
+         aiScore >= AI_VERDICT_MIXED ? 'Часть признаков стиля похожа на ИИ-тексты.' :
+         'Стиль похож на человеческие работы выборки.')
     },
     recommendations: [
       aiReliable ? null
-        : `Текст короче ${AI_MIN_WORDS} слов (${wordCount}): оценка ИИ-генерации по стилю на таком объёме ненадёжна.`,
-      aiScore > 55
-        ? 'Текст имеет признаки ИИ-генерации. Рекомендуется переработка: разнообразьте структуру предложений, уберите клише («в современном мире», «стоит отметить», «таким образом»).'
-        : aiScore > 30
-        ? 'Обнаружены отдельные признаки шаблонности. Проверьте использование канцелярита («является», «данный», «который») и ИИ-клише.'
-        : 'Текст показывает хорошую вариативность. Сохраняйте текущий стиль.',
+        : `Основной текст короче ${AI_MIN_WORDS} слов (${bodyWords}): оценка ИИ-генерации по стилю на таком объёме ненадёжна.`,
+      aiScore >= AI_VERDICT_AI
+        ? 'Стиль текста похож на тексты, написанные ИИ: словарь богаче, повторов, служебных слов и запятых меньше, чем в типичных курсовых. Это не доказательство — калибровка предварительная. Если ИИ использовался, это стоит согласовать с руководителем.'
+        : aiScore >= AI_VERDICT_MIXED
+        ? 'Отдельные признаки стиля похожи на ИИ-тексты. Само по себе это ничего не доказывает.'
+        : 'По стилю текст похож на работы, написанные людьми.',
       shingleRepRate > 0.3
         ? 'Много повторяющихся оборотов. Переформулируйте их, чтобы текст читался живее.'
         : 'Уровень шаблонности в пределах нормы.',
@@ -3036,7 +2994,7 @@ function normalizeApiResult(raw){
     citation_percent: num(obj.citation_percent),
     ai_generated_percent: ai,
     ai_verdict: oneOf(obj.ai_verdict, ['human', 'mixed', 'ai'],
-      ai < 30 ? 'human' : ai < 55 ? 'mixed' : 'ai'),
+      aiVerdictFor(ai)),
     ai_confidence: num(obj.ai_confidence),
     fragments: list(obj.fragments).slice(0, 30)
       .filter(f => f && typeof f === 'object' && str(f.text))
@@ -3611,7 +3569,7 @@ async function runAnalysis(text, progressCallback){
   // Обновляем прогресс-сообщение, если коллбэк предоставлен
   const update = (msg) => progressCallback && progressCallback(msg);
 
-  update('Локальный анализ — 7 метрик...');
+  update('Локальный анализ стиля и текста...');
   // Локальный анализ работает быстро (50-200 мс), запускаем сразу
   const local = localAnalyze(text);
 
@@ -3832,10 +3790,12 @@ function aiBreakdownHtml(r){
   const list = arr => arr.map(m => `${escapeHtml(m.text)} ×${escapeHtml(m.count)}`).join(', ');
   return `<div class="card">
     <div class="card-t" style="color:var(--ap-ai)">Из чего сложилась оценка</div>
-    <div class="hint" style="margin-bottom:6px">Метрики стиля, посчитанные в браузере. Сумма вкладов —
-      сырой балл ${escapeHtml(r.ai_raw_score)} из 100, после сглаживания — ${escapeHtml(r.ai_local_percent)}%.
-      ${r.ai_cliche_floor ? 'Итог поднят до 55%: больше одного сильного ИИ-клише на 100 слов.' : ''}
-      ${r._hybrid ? 'В API-режиме итог дополнительно учитывает оценку языковой модели.' : ''}</div>
+    <div class="hint" style="margin-bottom:6px">Метрики стиля, откалиброванные на 9 размеченных работах
+      (4 от ИИ, 5 от людей). Каждая — от 0 (как у типичной человеческой работы) до 100 (как у типичного
+      ИИ-текста); итог по стилю — их среднее: ${escapeHtml(r.ai_local_percent)}%.
+      ${r.ai_cliche_floor ? `Итог поднят до ${AI_VERDICT_AI}%: больше одного сильного ИИ-клише на 100 слов.` : ''}
+      ${r._hybrid ? 'В API-режиме итог дополнительно учитывает оценку языковой модели.' : ''}
+      Калибровка предварительная: высокий процент — повод присмотреться, а не доказательство.</div>
     ${r.ai_features.map(f => `<div class="feat">
       <div class="feat-h"><span class="feat-n">${escapeHtml(f.name)}</span>
         <span class="feat-v">${escapeHtml(f.value)} · ${f.score == null ? 'не учтена' : '+' + escapeHtml(f.contribution)}</span></div>
@@ -4032,7 +3992,7 @@ function renderHome(){
       ` : ''}
     ` : `
       <div class="hint">
-        Без API-ключа работает <b style="color:var(--txt2)">локальный анализ</b> по 7 метрикам (burstiness, MATTR, маркеры ИИ, шаблонность, канцелярит, em-dash, Flesch-Kincaid).
+        Без API-ключа работает <b style="color:var(--txt2)">локальный анализ</b>: стиль текста по метрикам, откалиброванным на размеченных работах, поиск заимствований и проверка оформления.
         Подключение API даёт <b style="color:var(--acc)">углублённый анализ</b> через LLM и Fast-DetectGPT для точной детекции ИИ-контента.
       </div>
     `}
@@ -4046,7 +4006,7 @@ function renderHome(){
 <div class="card" style="margin-top:18px">
   <div class="card-t">ℹ Как это работает</div>
   <div style="font-size:12px;color:var(--txt2);line-height:1.7;font-weight:400">
-    <b style="color:var(--txt)">Локальный режим</b> (всегда включён): анализ 7 стилометрических метрик без отправки текста наружу.<br><br>
+    <b style="color:var(--txt)">Локальный режим</b> (всегда включён): оценка стиля и проверка текста без отправки его наружу.<br><br>
     <b style="color:var(--txt)">Поиск заимствований</b> (всегда): сервис находит похожие работы в 6 открытых базах — OpenAlex, Crossref, Semantic Scholar, arXiv, Wikipedia, DOAJ — и сравнивает каждое предложение документа с их аннотациями. Находит дословные совпадения и близкий пересказ.<br><br>
     <b style="color:var(--txt)">API-режим</b> (опционально): дополнительная оценка ИИ-генерации через языковую модель (Llama 3.3 70B). На процент заимствований не влияет.<br><br>
     <b style="color:var(--txt)">Что не может заменить:</b> официальную проверку ВУЗа. У Антиплагиата есть закрытые базы (РГБ, eLIBRARY, Кольцо вузов), к которым нет публичного доступа.
@@ -4821,12 +4781,12 @@ ${(() => {
   ${r.ai_analysis.details ? `<div style="background:#f8fafc;border-radius:10px;padding:14px 18px;border-left:3px solid #BF5AF2;font-size:13px;color:#475569;line-height:1.7">${escapeHtml(r.ai_analysis.details)}</div>` : ''}` : ''}
   ${r.ai_reliable === false ? `<div class="note" style="margin-top:10px;color:#FF9F0A">Текст короче 300 слов: оценка ИИ-генерации по стилю ненадёжна.</div>` : ''}
   ${r.ai_features ? `<table class="mx">
-    <tr><th>Метрика</th><th>Значение</th><th>Порог</th><th>Вклад</th></tr>
+    <tr><th>Метрика</th><th>Значение</th><th>Ориентиры</th><th>Вклад</th></tr>
     ${r.ai_features.map(f => `<tr><td>${escapeHtml(f.name)}</td><td class="n">${escapeHtml(f.value)}</td>
       <td>${escapeHtml(f.rule)}</td><td class="n">${f.score == null ? 'не учтена' : '+' + escapeHtml(f.contribution)}</td></tr>`).join('')}
   </table>
-  <div class="note" style="margin-top:8px">Сырой балл ${escapeHtml(r.ai_raw_score)} из 100, после сглаживания — ${escapeHtml(r.ai_local_percent)}%.${r.ai_cliche_floor
-    ? ' Итог поднят до 55%: больше одного сильного ИИ-клише на 100 слов.' : ''}${(r.ai_markers || []).some(m => m.strong)
+  <div class="note" style="margin-top:8px">Итог по стилю — среднее метрик: ${escapeHtml(r.ai_local_percent)}%. Метрики откалиброваны на 9 размеченных работах; калибровка предварительная.${r.ai_cliche_floor
+    ? ` Итог поднят до ${AI_VERDICT_AI}%: больше одного сильного ИИ-клише на 100 слов.` : ''}${(r.ai_markers || []).some(m => m.strong)
     ? ' ИИ-клише: ' + escapeHtml(r.ai_markers.filter(m => m.strong).map(m => m.text + ' ×' + m.count).join(', ')) + '.' : ''}</div>` : ''}
 </div>
 
