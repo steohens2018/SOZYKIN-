@@ -11,7 +11,7 @@
 //   — запросы к базам источников и ИИ-провайдерам не трогаем вовсе:
 //     результаты поиска должны быть свежими, а API-ключ не должен попасть в кеш.
 
-const CACHE = 'sozykin-v9';
+const CACHE = 'sozykin-v10';
 
 const SHELL = [
   './', './index.html', './app.html', './accuracy.html', './site.css',
