@@ -2369,6 +2369,9 @@ function startPollinationsLogin(){
   const state = [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
   try{
     sessionStorage.setItem('sp_auth_state', state);
+    // Текст тоже: черновик стирается после проверки, а без текста не сработает
+    // «Приложить начало текста». sessionStorage живёт только в этой вкладке
+    // и очищается сразу после возврата.
     sessionStorage.setItem('sp_resume', JSON.stringify({ res: S.res, fn: S.fn, text: S.text, chat: S.chat }));
   }catch(e){
     toast('Браузер не дал сохранить отчёт на время входа — после возврата проверку придётся повторить', 'info', 5000);
@@ -2376,6 +2379,10 @@ function startPollinationsLogin(){
   const params = new URLSearchParams({
     redirect_uri: location.origin + location.pathname,
     models: POLLINATIONS.model,
+    // Ключ живёт во вкладке, поэтому долгий срок не нужен: сутки и небольшой
+    // лимит — чтобы потерянный ключ почти ничего не стоил
+    expiry: '1',
+    budget: '3',
     state
   });
   if(POLLINATIONS.appKey) params.set('client_id', POLLINATIONS.appKey);
