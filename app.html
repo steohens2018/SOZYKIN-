@@ -11,14 +11,11 @@
 <meta name="apple-mobile-web-app-title" content="SOZYKIN">
 <meta name="mobile-web-app-capable" content="yes">
 
-<!-- Иконки приложения. Чёрный фон с синим логотипом «SP» — это и иконка
-     для вкладки браузера, и иконка для домашнего экрана iOS, и иконка PWA. -->
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23000000'/><text x='50%25' y='58%25' dominant-baseline='middle' text-anchor='middle' font-family='system-ui' font-weight='800' font-size='13' fill='%230A84FF'>SP</text></svg>">
-<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%23000000'/><text x='50%25' y='58%25' dominant-baseline='middle' text-anchor='middle' font-family='system-ui' font-weight='800' font-size='72' fill='%230A84FF'>SP</text></svg>">
-
-<!-- Web App Manifest — встроен в HTML через data URI, чтобы не нужен был отдельный файл.
-     Это позволяет приложению устанавливаться как PWA на iOS и Android. -->
-<link rel="manifest" href='data:application/manifest+json;charset=utf-8,{"name":"SOZYKIN%20%D0%9F%D0%BB%D0%B0%D0%B3%D0%B8%D0%B0%D1%82","short_name":"SOZYKIN","start_url":".","display":"standalone","background_color":"%23000000","theme_color":"%23000000","description":"%D0%9F%D1%80%D0%BE%D0%B2%D0%B5%D1%80%D0%BA%D0%B0%20%D0%BE%D1%80%D0%B8%D0%B3%D0%B8%D0%BD%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE%D1%81%D1%82%D0%B8","orientation":"portrait","icons":[{"src":"data:image/svg%2Bxml;charset=utf-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%20512%20512%27%3E%3Crect%20width%3D%27512%27%20height%3D%27512%27%20rx%3D%27110%27%20fill%3D%27%23000000%27%2F%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2758%25%27%20dominant-baseline%3D%27middle%27%20text-anchor%3D%27middle%27%20font-family%3D%27system-ui%27%20font-weight%3D%27800%27%20font-size%3D%27200%27%20fill%3D%27%230A84FF%27%3ESP%3C%2Ftext%3E%3C%2Fsvg%3E","sizes":"512x512","type":"image/svg+xml"}]}'>
+<!-- Иконки и манифест — общие для всех страниц сайта (папка icons/).
+     Манифест и sw.js дают установку на телефон и работу без сети. -->
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 
 <!-- Inter — шрифт уровня премиум-SaaS (используется в Linear, Vercel, Stripe).
      JetBrains Mono — для цифр и кода, имеет идеальные табличные пропорции. -->
@@ -166,7 +163,13 @@ input,textarea,select{font-family:inherit;font-size:14px}
   z-index:50;
 }
 .hdr-l{display:flex;align-items:center;gap:12px}
-.hdr-r{display:flex;align-items:center;gap:8px}
+.hdr-r{display:flex;align-items:center;gap:4px}
+.nav-a{color:var(--txt2);font-size:13px;font-weight:500;padding:7px 10px;border-radius:9px;text-decoration:none}
+.nav-a:hover{color:var(--txt);background:var(--s2)}
+.nav-a.on{color:var(--acc);background:var(--accS)}
+@media(max-width:400px){.nav-a{padding:7px 7px;font-size:12px}.hdr .sub{display:none}}
+/* Название в одну строку — только там, где хватает места рядом с меню */
+@media(min-width:421px){.brand{white-space:nowrap}}
 
 /* Логотип — стилизованная галочка в круге, символизирующая «проверено».
    Круглая форма даёт премиальное ощущение, в отличие от квадратного логотипа.
@@ -1071,7 +1074,8 @@ details[open] summary::after{
 .req:last-of-type{border-bottom:none}
 .req-i{flex-shrink:0;width:18px;text-align:center;font-weight:800}
 .req-b{flex:1;min-width:0}
-.req-l{font-weight:600;color:var(--txt)}
+.req-l{font-weight:600;color:var(--txt);overflow-wrap:anywhere}
+.req-b summary, details summary > div{overflow-wrap:anywhere;min-width:0}
 .req-v{color:var(--dim)}
 
 /* Разбивка ИИ-оценки по метрикам */
@@ -1321,23 +1325,25 @@ details[open] summary::after{
 <body>
 
 <header class="hdr">
-  <div class="hdr-l">
+  <a class="hdr-l" href="index.html" style="color:inherit;text-decoration:none">
     <div class="lg"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
     <div>
       <div class="brand">SOZYKIN Плагиат</div>
-      <div class="sub">Проверка оригинальности · v8.0</div>
+      <div class="sub">Проверка оригинальности · v9.0</div>
     </div>
-  </div>
-  <div class="hdr-r">
-    <span class="ver m">v8.0</span>
-  </div>
+  </a>
+  <nav class="hdr-r">
+    <a class="nav-a" href="#check" data-mode="check">Проверка</a>
+    <a class="nav-a" href="#group" data-mode="group">Группа</a>
+    <a class="nav-a" href="accuracy.html">Точность</a>
+  </nav>
 </header>
 
 <main class="wrap" id="app"></main>
 
 <footer class="ft">
-  <div><b>SOZYKIN Плагиат</b> v8.0 · Работает без VPN из России</div>
-  <div style="margin-top:6px">Локальный анализ + 5 AI-провайдеров + 6 баз поиска</div>
+  <div><b>SOZYKIN Плагиат</b> v9.0 · <a href="index.html">Главная</a> · <a href="accuracy.html">Как работает и насколько точен</a></div>
+  <div style="margin-top:6px">Документ обрабатывается в браузере · 6 открытых баз источников</div>
 </footer>
 
 <!-- Контейнер для toast-уведомлений. Должен быть в body, чтобы быть выше всего. -->
@@ -4966,78 +4972,221 @@ function printReport(r, fn){
 // =============================================================================
 
 // =============================================================================
-// SERVICE WORKER — работа в оффлайне.
+// РЕЖИМ «РАБОТЫ ГРУППЫ» — для преподавателя и кафедры.
 //
-// Когда пользователь устанавливает приложение как PWA на главный экран,
-// Service Worker позволяет ему работать без интернета. Мы кешируем все
-// статические ресурсы (HTML, библиотеки PDF.js и mammoth, шрифты), и
-// после первой загрузки приложение будет открываться мгновенно даже
-// без сети. API-запросы (Groq, OpenAlex и т.д.) при этом не кешируются,
-// чтобы данные всегда были свежими.
+// Загружаются работы нескольких студентов; каждая сравнивается со всеми
+// остальными тем же модулем, что ищет заимствования в базах (findMatches):
+// источниками выступают тексты однокурсников. Так находится списывание
+// внутри группы, которое внешние базы не видят. Сравнивается основной текст
+// (mainBodyText) — титульные листы и списки литературы одного вуза похожи
+// у всех и дали бы ложные совпадения.
+//
+// Для каждой работы заодно считаются ИИ-оценка по стилю и (для DOCX)
+// проверка оформления. Всё — в памяти браузера: работы никуда не загружаются
+// и не сохраняются между перезагрузками страницы.
+// =============================================================================
+
+const G = { works: [], results: null, busy: false };
+const GROUP_MAX_WORKS = 40;
+
+function renderGroup(){
+  const works = G.works;
+  app.innerHTML = `
+<div class="hero" style="padding-bottom:8px">
+  <div class="hero-t" style="font-size:30px">Работы группы</div>
+  <div class="hero-s">Загрузите работы студентов — сервис сравнит каждую с каждой и покажет
+    совпадающие предложения. Работы не покидают браузер.</div>
+</div>
+
+<div class="drop" id="gdz">
+  <input type="file" id="gfi" accept=".txt,.docx,.pdf" multiple style="display:none">
+  <div class="drop-i">📚</div>
+  <div class="drop-t">${G.busy ? 'Загрузка…' : 'Нажмите, чтобы добавить работы'}</div>
+  <div class="drop-h">PDF · DOCX · TXT · можно выбрать несколько файлов · до ${GROUP_MAX_WORKS} работ</div>
+</div>
+
+<div style="margin:14px 0">
+  <label>Тип работ — для проверки оформления и объёма</label>
+  <div class="prov" id="gWorkGrid">
+    ${Object.entries(WORK_TYPES).map(([key, t]) =>
+      `<button class="prov-b ${S.workType === key ? 'on' : ''}" data-w="${key}">${escapeHtml(t.name)}</button>`).join('')}
+  </div>
+</div>
+
+${works.length ? `<div class="card">
+  <div class="card-t">Загружено работ: ${works.length}</div>
+  ${works.map((w, i) => groupWorkRow(w, i)).join('')}
+</div>` : ''}
+
+<div id="geb"></div>
+<button class="btn btn-go" id="gGo" ${works.length >= 2 && !G.busy ? '' : 'disabled'}>🔍 Сравнить работы</button>
+${works.length ? `<button class="btn-o" id="gClear" style="width:100%;margin-top:8px">Очистить список</button>` : ''}
+
+${G.results ? groupResultsHtml(G.results) : ''}
+
+<div class="card" style="margin-top:18px">
+  <div class="card-t">ℹ Как это работает</div>
+  <div style="font-size:12px;color:var(--txt2);line-height:1.7">
+    Каждое предложение основной части работы сравнивается с предложениями остальных работ:
+    находятся дословные совпадения, совпадения с изменёнными окончаниями и близкий пересказ.
+    Процент — доля текста работы, совпавшая с другой. Предложения в кавычках со ссылкой
+    считаются цитатами. Общие для всех формулировки («Объектом исследования являются…»)
+    тоже дадут совпадение — смотрите на сами предложения, а не только на процент.
+  </div>
+</div>`;
+
+  const dz = $('#gdz'), fi = $('#gfi');
+  dz.onclick = () => fi.click();
+  dz.ondragover = e => { e.preventDefault(); dz.classList.add('on'); };
+  dz.ondragleave = () => dz.classList.remove('on');
+  dz.ondrop = e => { e.preventDefault(); dz.classList.remove('on'); addGroupFiles([...e.dataTransfer.files]); };
+  fi.onchange = e => addGroupFiles([...e.target.files]);
+  $$('#gWorkGrid .prov-b').forEach(btn => btn.onclick = () => { S.workType = btn.dataset.w; saveState(); renderGroup(); });
+  $$('.gw-del').forEach(btn => btn.onclick = () => { G.works.splice(+btn.dataset.i, 1); G.results = null; renderGroup(); });
+  const go = $('#gGo');
+  if(go) go.onclick = runGroupComparison;
+  const clear = $('#gClear');
+  if(clear) clear.onclick = () => { G.works = []; G.results = null; renderGroup(); };
+}
+
+function groupWorkRow(w, i){
+  const verdict = { human: ['Человек', 'var(--grn)'], mixed: ['Смешанный', 'var(--amb)'], ai: ['ИИ', 'var(--ap-ai)'] }[w.ai.verdict];
+  const fmt = w.formatFailed == null ? '' : w.formatFailed.length
+    ? ` · <span style="color:var(--red)">оформление: ${escapeHtml(w.formatFailed.join(', '))}</span>`
+    : ' · <span style="color:var(--grn)">оформление в порядке</span>';
+  return `<div class="req">
+    <div class="req-i" style="color:var(--dim)">${i + 1}</div>
+    <div class="req-b">
+      <div class="req-l">${escapeHtml(w.name)}</div>
+      <div class="req-v">${escapeHtml(w.words.toLocaleString('ru'))} слов · ИИ по стилю:
+        <span style="color:${verdict[1]}">${escapeHtml(w.ai.percent)}% (${verdict[0]}${w.ai.reliable ? '' : ', ненадёжно'})</span>${fmt}</div>
+    </div>
+    <button class="gw-del" data-i="${i}" title="Убрать" style="background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer;padding:0 4px">×</button>
+  </div>`;
+}
+
+async function addGroupFiles(files){
+  if(!files.length || G.busy) return;
+  G.busy = true; G.results = null; renderGroup();
+  const errors = [];
+  for(const file of files){
+    if(G.works.length >= GROUP_MAX_WORKS){ errors.push(`Больше ${GROUP_MAX_WORKS} работ за раз не сравниваем`); break; }
+    try{
+      const text = (await readFile(file)).replace(/\r\n/g, '\n').replace(/ /g, ' ').trim();
+      const body = mainBodyText(text);
+      const analysis = localAnalyze(text);
+      let formatFailed = null;
+      if(file.name.toLowerCase().endsWith('.docx')){
+        try{
+          const f = await checkDocxFormatting(await file.arrayBuffer());
+          const req = requirementChecks({ work_type: S.workType, formatting: f, borrowed_percent: 0 });
+          const rows = req ? req.rows : f.checks;
+          formatFailed = rows.filter(r => r.ok === false).map(r => r.label.toLowerCase());
+        }catch(e){ formatFailed = null; }
+      }
+      G.works.push({
+        name: file.name, text, body, words: tokenize(body).length,
+        ai: { percent: analysis.ai_local_percent, verdict: aiVerdictFor(analysis.ai_local_percent), reliable: analysis.ai_reliable },
+        formatFailed
+      });
+    }catch(e){
+      errors.push(`${file.name}: ${e.message}`);
+    }
+  }
+  G.busy = false;
+  renderGroup();
+  if(errors.length){
+    $('#geb').innerHTML = errors.map(e => `<div class="err">⚠ ${escapeHtml(e)}</div>`).join('');
+  }
+}
+
+// Сравнение: для каждой работы — один вызов findMatches, где источники —
+// все остальные работы группы. Каждое совпавшее предложение относится
+// к одной, самой похожей работе.
+async function runGroupComparison(){
+  if(G.works.length < 2 || G.busy) return;
+  G.busy = true;
+  const go = $('#gGo');
+  const pairs = new Map();   // "i-j" (i < j) → { i, j, shareIJ, shareJI, examples }
+  for(let i = 0; i < G.works.length; i++){
+    if(go) go.textContent = `Сравнение… ${i + 1} из ${G.works.length}`;
+    await new Promise(r => setTimeout(r, 0));   // даём браузеру перерисовать кнопку
+    const others = G.works.map((w, k) => ({ k, title: w.name, sourceName: 'группа', text: w.body })).filter(o => o.k !== i);
+    const matches = findMatches(G.works[i].body, others);
+    const chars = new Map();
+    for(const m of matches){
+      const j = others[m.sourceIndex].k;
+      const key = i < j ? `${i}-${j}` : `${j}-${i}`;
+      if(!pairs.has(key)) pairs.set(key, { i: Math.min(i, j), j: Math.max(i, j), shareIJ: 0, shareJI: 0, examples: [] });
+      const pair = pairs.get(key);
+      if(!m.cited) chars.set(j, (chars.get(j) || 0) + m.text.length);
+      if(pair.examples.length < 8) pair.examples.push({ from: i, to: j, doc: m.text, excerpt: m.excerpt, kind: m.kind, cited: m.cited });
+    }
+    const len = G.works[i].body.length || 1;
+    for(const [j, c] of chars){
+      const pair = pairs.get(i < j ? `${i}-${j}` : `${j}-${i}`);
+      const share = Math.round(c / len * 1000) / 10;
+      if(i === pair.i) pair.shareIJ = share; else pair.shareJI = share;
+    }
+  }
+  const list = [...pairs.values()].sort((a, b) => Math.max(b.shareIJ, b.shareJI) - Math.max(a.shareIJ, a.shareJI));
+  G.results = { pairs: list, total: G.works.length * (G.works.length - 1) / 2 };
+  G.busy = false;
+  renderGroup();
+  const res = $('#gRes');
+  if(res) res.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function groupResultsHtml(res){
+  const w = G.works;
+  const label = i => `${i + 1}. ${escapeHtml(w[i].name)}`;
+  const color = p => p >= 15 ? 'var(--red)' : p >= 5 ? 'var(--amb)' : 'var(--dim)';
+  return `<div class="card" id="gRes" style="margin-top:18px">
+    <div class="card-t">Совпадения между работами</div>
+    <div class="hint" style="margin-bottom:8px">Пар с совпадениями: ${res.pairs.length} из ${res.total}.
+      Процент — доля основного текста одной работы, найденная в другой.</div>
+    ${res.pairs.length ? res.pairs.map(p => `
+    <details style="margin-bottom:8px">
+      <summary>
+        <div style="font-weight:600">${label(p.i)} ↔ ${label(p.j)}</div>
+        <div style="font-size:12px;font-weight:500;margin-top:4px">
+          <span style="color:${color(p.shareIJ)}">${escapeHtml(p.shareIJ)}% работы ${p.i + 1}</span> ·
+          <span style="color:${color(p.shareJI)}">${escapeHtml(p.shareJI)}% работы ${p.j + 1}</span>
+        </div>
+      </summary>
+      <div class="det-b">${p.examples.map(e => `
+        <div class="match${e.cited ? ' cited' : ''}" style="margin-left:0">
+          <div class="match-doc">${e.from + 1}: «${escapeHtml(e.doc)}»</div>
+          <div class="match-src">↳ ${e.to + 1}: «${escapeHtml(e.excerpt)}»</div>
+          <div class="match-k">${e.cited ? 'цитата с оформлением' : e.kind === 'exact' ? 'совпадение' : 'пересказ'}</div>
+        </div>`).join('')}
+      </div>
+    </details>`).join('') : '<div class="hint">Совпадений между работами не найдено.</div>'}
+  </div>`;
+}
+
+// Переключение режимов по адресу: #group — работы группы, иначе — проверка одной работы
+function route(){
+  const mode = location.hash === '#group' ? 'group' : 'check';
+  $$('.nav-a[data-mode]').forEach(a => a.classList.toggle('on', a.dataset.mode === mode));
+  if(mode === 'group') renderGroup();
+  else if(S.res) renderResult();
+  else renderHome();
+  window.scrollTo(0, 0);
+}
+
+// =============================================================================
+// SERVICE WORKER — офлайн-режим и установка на телефон.
+//
+// Сам воркер — отдельный файл sw.js рядом со страницей. Прежний вариант
+// создавал его из blob-ссылки, а браузеры такие воркеры не регистрируют.
 // =============================================================================
 
 function registerServiceWorker(){
-  if(!('serviceWorker' in navigator) || location.protocol !== 'https:') return;
-
-  // Inline Service Worker — генерируется через Blob URL.
-  // Это позволяет иметь Service Worker без отдельного файла на сервере.
-  const swCode = `
-    const CACHE_NAME = 'sozykin-v8';
-    const URLS_TO_CACHE = [
-      './',
-      'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js',
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
-      'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap'
-    ];
-
-    self.addEventListener('install', e => {
-      self.skipWaiting();
-      e.waitUntil(
-        caches.open(CACHE_NAME).then(cache =>
-          cache.addAll(URLS_TO_CACHE).catch(() => {})
-        )
-      );
-    });
-
-    self.addEventListener('activate', e => {
-      e.waitUntil(
-        caches.keys().then(keys =>
-          Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-        )
-      );
-      self.clients.claim();
-    });
-
-    self.addEventListener('fetch', e => {
-      const url = e.request.url;
-      // API-запросы не кешируем — они должны всегда идти на сервер
-      const apiHosts = [
-        'api.groq.com', 'api.openalex.org', 'api.crossref.org',
-        'api.semanticscholar.org', 'api.cerebras.ai', 'api.mistral.ai',
-        'openrouter.ai', 'gigachat', 'doaj.org', 'arxiv.org', 'wikipedia.org'
-      ];
-      if(apiHosts.some(host => url.includes(host))) return;
-
-      e.respondWith(
-        caches.match(e.request).then(cached =>
-          cached || fetch(e.request).then(response => {
-            // Сохраняем успешные ответы в кеш
-            if(response.ok && (response.type === 'basic' || response.type === 'cors')){
-              const clone = response.clone();
-              caches.open(CACHE_NAME).then(cache =>
-                cache.put(e.request, clone)
-              ).catch(() => {});
-            }
-            return response;
-          }).catch(() => caches.match('./'))
-        )
-      );
-    });
-  `;
-  const swBlob = new Blob([swCode], { type: 'application/javascript' });
-  const swUrl = URL.createObjectURL(swBlob);
-  navigator.serviceWorker.register(swUrl).catch(e =>
+  // Воркер — отдельный файл sw.js рядом со страницей. Нужен https (или localhost).
+  if(!('serviceWorker' in navigator)) return;
+  if(location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
+  navigator.serviceWorker.register('sw.js').catch(e =>
     console.warn('Service Worker registration failed:', e)
   );
 }
@@ -5065,8 +5214,9 @@ function initApp(){
   // Регистрация Service Worker для оффлайн-работы
   registerServiceWorker();
 
-  // Отрисовка главного экрана
-  renderHome();
+  // Отрисовка нужного режима: проверка одной работы или работы группы
+  window.addEventListener('hashchange', route);
+  route();
 
   // Настройка командной палитры удалена в версии 7.2
 
