@@ -623,6 +623,7 @@ label{
   min-width:240px;
   max-width:90vw;
   letter-spacing:-.005em;
+  overflow-wrap:anywhere;   /* длинное имя файла без пробелов не вылезает за край */
 }
 .toast.t-success{border-left:3px solid var(--grn)}
 .toast.t-error{border-left:3px solid var(--red)}
@@ -884,6 +885,7 @@ details[open] summary::after{
   font-weight:600;
   margin-top:3px;
   letter-spacing:-.005em;
+  overflow-wrap:anywhere;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1063,6 +1065,23 @@ details[open] summary::after{
   letter-spacing:-.01em;
   font-feature-settings:"tnum";
 }
+
+/* Требования положения: «что найдено — что требуется» и отметка */
+.req{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd);font-size:12px;line-height:1.5}
+.req:last-of-type{border-bottom:none}
+.req-i{flex-shrink:0;width:18px;text-align:center;font-weight:800}
+.req-b{flex:1;min-width:0}
+.req-l{font-weight:600;color:var(--txt)}
+.req-v{color:var(--dim)}
+
+/* Разбивка ИИ-оценки по метрикам */
+.feat{padding:9px 0;border-bottom:1px solid var(--brd);font-size:12px}
+.feat-h{display:flex;justify-content:space-between;gap:8px}
+.feat-n{color:var(--txt);font-weight:500;min-width:0}
+.feat-v{color:var(--txt2);font-feature-settings:"tnum";flex-shrink:0}
+.feat-r{color:var(--dim);font-size:11px;margin-top:2px}
+.feat-bar{height:4px;background:var(--s2);border-radius:2px;margin-top:6px;overflow:hidden}
+.feat-bar>div{height:100%;background:var(--ap-ai);border-radius:2px}
 
 /* Совпавшие предложения под источником: что в документе и что в источнике */
 .src-wrap{margin-bottom:10px}
@@ -1357,20 +1376,23 @@ let S = {
   email: '',               // Email для отправки отчёта
   tab: 'overview',         // Активная вкладка результатов
   apiProvider: 'none',     // Выбранный AI-провайдер
-  apiKey: ''               // API-ключ провайдера (хранится только в браузере)
+  apiKey: '',              // API-ключ провайдера (хранится только в браузере)
+  workType: 'none',        // Тип работы для проверки требований положения
+  docxFormat: null         // Результат проверки оформления загруженного DOCX
 };
 try{
   const saved = JSON.parse(localStorage.getItem('sp_v7') || '{}');
   Object.assign(S, saved);
 }catch(e){}
-S.res = null; S.text = S.text || '';
+S.res = null; S.text = S.text || ''; S.docxFormat = null;
 
 function saveState(){
   try{
     localStorage.setItem('sp_v7', JSON.stringify({
       apiProvider: S.apiProvider,
       apiKey: S.apiKey,
-      email: S.email
+      email: S.email,
+      workType: S.workType
     }));
   }catch(e){}
 }
@@ -1445,31 +1467,64 @@ const STOP_RU = new Set(('и в во не что он на я с со как а 
   'много разве три эту моя впрочем хорошо свою этой перед иногда лучше чуть том нельзя ' +
   'такой им более всегда конечно всю между').split(' '));
 
-// Маркеры ИИ-генерации на русском. Эти фразы характерны для вывода GPT-4,
-// Claude, GigaChat, YandexGPT при работе с русским языком. В живой речи
-// они тоже встречаются, но плотность у ИИ заметно выше.
+// Маркеры ИИ-генерации с весами.
+//
+// Вес 1 — клише, характерные именно для текстов языковых моделей (GPT-4,
+// Claude, GigaChat, YandexGPT): «играет ключевую роль», «давайте рассмотрим»,
+// «открывает новые возможности». Список составлен по наблюдениям за выводом
+// моделей, а не взят из исследования.
+//
+// Вес 0.2 — обычные связки научного стиля. Люди пишут так постоянно: в
+// юридических курсовых «в связи с» встречается до 20 раз, «но и» — до 11.
+// Раньше они весили столько же, сколько настоящие ИИ-клише, и завышали оценку
+// любого академического текста. Теперь лишь слегка добавляют к ней.
+//
+// «*» в конце слова — любое окончание: «многогранн*» = многогранный, -ая, -ые…
+const MARKER_STRONG = 1;
+const MARKER_WEAK = 0.2;
+const marker = w => p => ({ p, w });
+const strong = marker(MARKER_STRONG), weak = marker(MARKER_WEAK);
+
 const AI_MARKERS_RU = [
-  'в современном мире', 'стоит отметить', 'следует отметить', 'важно отметить',
-  'таким образом', 'в заключение', 'на сегодняшний день', 'играет ключевую роль',
-  'играет важную роль', 'представляет собой', 'давайте рассмотрим',
-  'в условиях', 'необходимо понимать', 'крайне важно', 'имеет большое значение',
-  'может стать', 'является одним из', 'является важным', 'в первую очередь',
-  'с одной стороны', 'с другой стороны', 'не только', 'но и', 'прежде всего',
-  'в настоящее время', 'в рамках', 'в связи с', 'в контексте',
-  'в современных условиях', 'в частности', 'в особенности',
-  'неотъемлемой частью', 'играет значительную роль', 'нельзя не отметить',
-  'вместе с тем', 'в то же время', 'тем не менее', 'в этой связи'
+  ...[
+    'в современном мире', 'играет ключевую роль', 'играет решающую роль',
+    'играет важнейшую роль', 'играет значительную роль', 'давайте рассмотрим',
+    'давайте разберемся', 'необходимо понимать', 'важно понимать', 'крайне важно',
+    'важно подчеркнуть', 'стоит подчеркнуть', 'нельзя не отметить',
+    'неотъемлемой частью', 'неотъемлемая часть', 'открывает новые возможности',
+    'открывает широкие возможности', 'в эпоху стремительного', 'стремительно развивающ*',
+    'многогранн*', 'ключевым аспектом', 'ключевой аспект', 'подводя итог',
+    'подводя итоги', 'можно с уверенностью сказать', 'в целом можно сказать',
+    'является краеугольным камнем', 'служит фундаментом'
+  ].map(strong),
+  ...[
+    'таким образом', 'в заключение', 'на сегодняшний день', 'представляет собой',
+    'в условиях', 'может стать', 'является одним из', 'является важным',
+    'имеет большое значение', 'играет важную роль', 'в первую очередь',
+    'с одной стороны', 'с другой стороны', 'не только', 'но и', 'прежде всего',
+    'в настоящее время', 'в рамках', 'в связи с', 'в контексте',
+    'в современных условиях', 'в частности', 'в особенности', 'вместе с тем',
+    'в то же время', 'тем не менее', 'в этой связи', 'стоит отметить',
+    'следует отметить', 'важно отметить', 'это не просто'
+  ].map(weak)
 ];
 
 // Маркеры на английском. ИИ часто использует слова вроде "delve" (углубляться)
 // или "tapestry" (полотно) намного чаще, чем носители языка.
 const AI_MARKERS_EN = [
-  'delve into', 'tapestry', 'landscape', 'navigate', 'embark', 'realm',
-  'it is important to note', 'in conclusion', 'furthermore', 'moreover',
-  'crucial', 'pivotal', 'paramount', 'intricate', 'nuanced', 'multifaceted',
-  'in the realm of', 'plays a crucial role', 'plays a significant role',
-  'it is worth noting', 'let us explore', 'in today\'s world', 'in essence'
+  ...[
+    'delve into', 'delves into', 'tapestry', 'embark on', 'in the realm of',
+    'multifaceted', 'it is important to note', 'it is worth noting', 'let us explore',
+    'in today\'s world', 'plays a crucial role', 'plays a pivotal role', 'pivotal',
+    'a testament to'
+  ].map(strong),
+  ...[
+    'furthermore', 'moreover', 'in conclusion', 'crucial', 'landscape', 'navigat*',
+    'nuanced', 'intricate', 'paramount', 'in essence', 'plays a significant role', 'realm'
+  ].map(weak)
 ];
+
+const AI_MARKERS = [...AI_MARKERS_RU, ...AI_MARKERS_EN];
 
 // Карта гомоглифов: латинские буквы, графически идентичные кириллическим.
 // Антиплагиат.ВУЗ помечает документы с такими подменами как «подозрительные».
@@ -1528,21 +1583,45 @@ function pseudoLemma(w){
   return w;
 }
 
-// Поиск маркеров ИИ в тексте. Возвращает количество найденных
-// и список с позициями для возможной подсветки.
+// Регулярка для маркера: только целые слова. Раньше маркер искался как
+// подстрока, и «но и» находилось внутри «одно из», «окно и», «давно и» —
+// в человеческом тексте без единого клише набиралось 4 «ИИ-маркера».
+// Граница слова — любой символ, кроме буквы и цифры (\b в JS знает только латиницу).
+const markerRegexCache = new Map();
+function markerRegex(phrase){
+  if(!markerRegexCache.has(phrase)){
+    const words = phrase.replace(/ё/g, 'е').split(/\s+/).map(w => {
+      const stem = w.endsWith('*');
+      const esc = (stem ? w.slice(0, -1) : w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return stem ? esc + '\\p{L}*' : esc;
+    });
+    markerRegexCache.set(phrase,
+      new RegExp('(^|[^\\p{L}\\d])(' + words.join('\\s+') + ')(?![\\p{L}\\d])', 'giu'));
+  }
+  return markerRegexCache.get(phrase);
+}
+
+// Поиск маркеров ИИ в тексте. Возвращает количество найденных, взвешенный
+// балл (сильный маркер = 1, слабый = 0.2) и список с позициями для подсветки.
 function countMarkers(text, markers){
-  const low = text.toLowerCase();
-  let count = 0;
+  // ё → е не меняет длину строки, поэтому позиции совпадений остаются верными
+  const norm = text.replace(/ё/g, 'е').replace(/Ё/g, 'Е');
+  let count = 0, score = 0;
   const hits = [];
   for(const m of markers){
-    let idx = 0;
-    while((idx = low.indexOf(m, idx)) !== -1){
+    const re = markerRegex(m.p);
+    re.lastIndex = 0;
+    let match;
+    while((match = re.exec(norm)) !== null){
       count++;
-      hits.push({ pos: idx, len: m.length, text: m });
-      idx += m.length;
+      score += m.w;
+      const pos = match.index + match[1].length;
+      hits.push({ pos, len: match[2].length, text: m.p.replace(/\*/g, ''), weight: m.w });
+      // Следующий поиск — с конца совпадения, без захваченного символа-границы
+      re.lastIndex = pos + match[2].length;
     }
   }
-  return { count, hits };
+  return { count, score, hits };
 }
 
 // Создание шинглов — последовательностей из N подряд идущих токенов.
@@ -1620,17 +1699,22 @@ function scanSuspicious(text){
     );
   }
 
-  // 2) Ищем слова со смешанным алфавитом. В нормальном тексте такие слова
-  // практически не встречаются — если в слове есть и русские, и латинские
-  // буквы, это почти наверняка попытка подмены.
-  const words = text.split(/\s+/);
+  // 2) Ищем слова со смешанным алфавитом, где латинские буквы выдают себя
+  // за русские. Слово берём как сплошную последовательность букв: так
+  // «GPS/ГЛОНАСС» и «Wi-Fi-роутер» распадаются на отдельные слова и не
+  // считаются смешанными. А латинские буквы в слове должны все быть
+  // двойниками русских (a, c, e, o, p, x…): «ИвановАБ.pdf» из примера
+  // в положении о ВКР содержит d и f — это имя файла, а не подмена,
+  // зато «Cост.» с латинской C — настоящая подмена.
+  const words = text.match(/\p{L}+/gu) || [];
   for(const w of words){
     if(w.length < 3) continue; // Слишком короткие слова пропускаем
 
     const hasCyrillic = /[\u0400-\u04FF]/.test(w);
-    const hasLatin = /[A-Za-z]/.test(w);
+    const latin = w.match(/[A-Za-z]/g) || [];
+    const onlyLookalikes = latin.length > 0 && latin.every(ch => HOMOGLYPHS_LAT_TO_CYR[ch]);
 
-    if(hasCyrillic && hasLatin){
+    if(hasCyrillic && onlyLookalikes){
       result.mixedScriptWords++;
       result.affectedWords.push(w);
       // Считаем, сколько именно символов могут быть гомоглифами
@@ -1956,6 +2040,375 @@ async function readFile(file){
 }
 
 // =============================================================================
+// ПРОВЕРКА ОФОРМЛЕНИЯ DOCX ПО ПОЛОЖЕНИЯМ БЮИ МВД РОССИИ.
+//
+// Требования взяты из двух документов Барнаульского юридического института:
+//   — Положение о курсовой работе (приказ от 16.12.2022 № 1014);
+//   — Положение о выпускных квалификационных работах (приказ от 29.09.2023 № 702).
+// Оформление в них одинаковое: Times New Roman 14, интервал 1,5, поля
+// 30/10/20/20 мм, абзацный отступ 1,25 см, выравнивание по ширине, номера
+// страниц вверху по центру. Различаются объём и допустимые заимствования.
+//
+// DOCX — это zip-архив с XML внутри. Читаем его сами: распаковка встроенным
+// DecompressionStream, разбор — DOMParser. Так не нужна ещё одна библиотека
+// с CDN. Значения берутся с учётом стилей Word: умолчания документа →
+// цепочка стилей абзаца (basedOn) → стиль символа → прямое форматирование.
+// =============================================================================
+
+// Знаков на страницу (Times New Roman 14, интервал 1,5, поля 30/10/20/20):
+// среднее по пяти проверенным курсовым и ВКР — от 1390 до 1750 с учётом
+// титульного листа и оглавления.
+const CHARS_PER_PAGE = 1600;
+
+const WORK_TYPES = {
+  none:    { name: 'Не указан' },
+  course:  { name: 'Курсовая', full: 'Курсовая работа', pages: [25, 35], borrowMax: null,
+             source: 'Положение о курсовой работе БЮИ МВД России (приказ от 16.12.2022 № 1014)' },
+  diploma: { name: 'Дипломная', full: 'ВКР — дипломная работа', pages: [50, 60], borrowMax: 50,
+             source: 'Положение о ВКР БЮИ МВД России (приказ от 29.09.2023 № 702)' },
+  master:  { name: 'Магистерская', full: 'ВКР — магистерская диссертация', pages: [70, 80], borrowMax: 30,
+             source: 'Положение о ВКР БЮИ МВД России (приказ от 29.09.2023 № 702)' }
+};
+
+const FORMAT_RULES = {
+  font: 'Times New Roman', size: 14, line: 1.5, indentCm: 1.25,
+  margins: { left: 30, right: 10, top: 20, bottom: 20 },
+  // Доля основного текста, которая должна соответствовать требованию.
+  // 95%, а не 100%: в любой работе есть таблицы, формулы, вставки.
+  share: 0.95
+};
+
+// Распаковка нужных файлов из zip. Формат: в конце архива «центральный
+// каталог» со списком файлов и смещениями; сами данные сжаты deflate.
+async function unzipEntries(buffer, wanted){
+  const bytes = new Uint8Array(buffer);
+  const dv = new DataView(buffer);
+  let eocd = -1;
+  for(let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--){
+    if(dv.getUint32(i, true) === 0x06054b50){ eocd = i; break; }
+  }
+  if(eocd < 0) throw new Error('файл повреждён или это не DOCX');
+  const count = dv.getUint16(eocd + 10, true);
+  let off = dv.getUint32(eocd + 16, true);
+  const utf8 = new TextDecoder('utf-8');
+  const out = {};
+  for(let n = 0; n < count && off + 46 <= bytes.length; n++){
+    if(dv.getUint32(off, true) !== 0x02014b50) break;
+    const method = dv.getUint16(off + 10, true);
+    const size = dv.getUint32(off + 20, true);
+    const nameLen = dv.getUint16(off + 28, true);
+    const skip = nameLen + dv.getUint16(off + 30, true) + dv.getUint16(off + 32, true);
+    const local = dv.getUint32(off + 42, true);
+    const name = utf8.decode(bytes.subarray(off + 46, off + 46 + nameLen));
+    off += 46 + skip;
+    if(!wanted(name)) continue;
+    const start = local + 30 + dv.getUint16(local + 26, true) + dv.getUint16(local + 28, true);
+    const data = bytes.subarray(start, start + size);
+    if(method === 0){
+      out[name] = utf8.decode(data);
+    } else if(method === 8){
+      const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      out[name] = await new Response(stream).text();
+    }
+  }
+  return out;
+}
+
+const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+function wChild(el, name){
+  if(!el) return null;
+  for(const c of el.children) if(c.namespaceURI === W_NS && c.localName === name) return c;
+  return null;
+}
+function wChildren(el, name){
+  return el ? [...el.children].filter(c => c.namespaceURI === W_NS && c.localName === name) : [];
+}
+function wAttr(el, name){
+  return el ? el.getAttributeNS(W_NS, name) : null;
+}
+
+// Свойства абзаца: интервал, абзацный отступ, выравнивание, стиль
+function readParaProps(pPr){
+  const o = {};
+  if(!pPr) return o;
+  const sp = wChild(pPr, 'spacing');
+  const line = wAttr(sp, 'line');
+  if(line){
+    const rule = wAttr(sp, 'lineRule');
+    // auto — множитель (240 = одинарный); exact/atLeast — фиксированные пункты
+    o.line = (!rule || rule === 'auto') ? { mult: +line / 240 } : { pt: +line / 20 };
+  }
+  const ind = wChild(pPr, 'ind');
+  if(ind){
+    const first = wAttr(ind, 'firstLine'), hanging = wAttr(ind, 'hanging');
+    if(first) o.indent = +first / 567;          // твипы → см
+    else if(hanging) o.indent = -hanging / 567;
+  }
+  const jc = wAttr(wChild(pPr, 'jc'), 'val');
+  if(jc) o.jc = jc;
+  const style = wAttr(wChild(pPr, 'pStyle'), 'val');
+  if(style) o.style = style;
+  return o;
+}
+
+// Свойства символов: шрифт и кегль. Для кириллицы Word берёт шрифт из слота
+// hAnsi, поэтому он важнее ascii.
+function readRunProps(rPr){
+  const o = {};
+  if(!rPr) return o;
+  const f = wChild(rPr, 'rFonts');
+  if(f){
+    const name = wAttr(f, 'hAnsi') || wAttr(f, 'ascii');
+    const theme = wAttr(f, 'hAnsiTheme') || wAttr(f, 'asciiTheme');
+    if(name) o.font = name;
+    else if(theme) o.fontTheme = theme;
+  }
+  const sz = wAttr(wChild(rPr, 'sz'), 'val');
+  if(sz) o.size = +sz / 2;
+  const rs = wAttr(wChild(rPr, 'rStyle'), 'val');
+  if(rs) o.rstyle = rs;
+  return o;
+}
+
+async function checkDocxFormatting(buffer){
+  if(typeof DecompressionStream === 'undefined'){
+    throw new Error('браузер не умеет распаковывать DOCX (нужен Safari 16.4+ или свежий Chrome)');
+  }
+  const files = await unzipEntries(buffer, n =>
+    n === 'word/document.xml' || n === 'word/styles.xml' || n === 'word/theme/theme1.xml' ||
+    n === 'docProps/app.xml' || n === 'word/_rels/document.xml.rels' ||
+    /^word\/(header|footer)\d*\.xml$/.test(n));
+  if(!files['word/document.xml']) throw new Error('в архиве нет word/document.xml');
+  const parse = xml => new DOMParser().parseFromString(xml, 'application/xml');
+  const doc = parse(files['word/document.xml']);
+
+  // Шрифты темы: «minorHAnsi» и т. п. → реальное имя шрифта
+  const themeFonts = {};
+  if(files['word/theme/theme1.xml']){
+    const theme = parse(files['word/theme/theme1.xml']);
+    for(const kind of ['minorFont', 'majorFont']){
+      const latin = theme.getElementsByTagNameNS('*', kind)[0]?.getElementsByTagNameNS('*', 'latin')[0];
+      if(latin) themeFonts[kind.replace('Font', '')] = latin.getAttribute('typeface');
+    }
+  }
+  const fontName = props => props.font ||
+    (props.fontTheme ? themeFonts[props.fontTheme.startsWith('major') ? 'major' : 'minor'] : null);
+
+  // Стили: умолчания документа и цепочки basedOn
+  const styles = {};
+  let defaultsP = {}, defaultsR = {}, defaultParaStyle = null;
+  if(files['word/styles.xml']){
+    const st = parse(files['word/styles.xml']);
+    const dd = st.getElementsByTagNameNS(W_NS, 'docDefaults')[0];
+    defaultsP = readParaProps(wChild(wChild(dd, 'pPrDefault'), 'pPr'));
+    defaultsR = readRunProps(wChild(wChild(dd, 'rPrDefault'), 'rPr'));
+    for(const s of st.getElementsByTagNameNS(W_NS, 'style')){
+      const id = wAttr(s, 'styleId');
+      styles[id] = {
+        basedOn: wAttr(wChild(s, 'basedOn'), 'val'),
+        p: readParaProps(wChild(s, 'pPr')),
+        r: readRunProps(wChild(s, 'rPr'))
+      };
+      if(wAttr(s, 'type') === 'paragraph' && (wAttr(s, 'default') === '1' || wAttr(s, 'default') === 'true')){
+        defaultParaStyle = id;
+      }
+    }
+  }
+  const styleChain = (id, kind) => {
+    const chain = [];
+    for(let cur = id, guard = 0; cur && styles[cur] && guard < 20; cur = styles[cur].basedOn, guard++){
+      chain.unshift(styles[cur][kind]);
+    }
+    return Object.assign({}, ...chain);
+  };
+
+  // Основной текст — абзацы тела документа длиннее 200 символов: так
+  // отсекаются титульный лист, оглавление, заголовки и подписи. Абзацы
+  // внутри таблиц не учитываются (это прямые потомки w:body).
+  const body = doc.getElementsByTagNameNS(W_NS, 'body')[0];
+  const tally = () => new Map();
+  const fonts = tally(), sizes = tally(), lines = tally(), indents = tally(), aligns = tally();
+  const add = (map, key, n) => map.set(key, (map.get(key) || 0) + n);
+  let bodyChars = 0;
+  const paragraphs = wChildren(body, 'p');
+  const textOf = p => [...p.getElementsByTagNameNS(W_NS, 't')].map(t => t.textContent).join('');
+  for(const p of paragraphs){
+    const text = textOf(p);
+    if(text.length < 200) continue;
+    bodyChars += text.length;
+    const direct = readParaProps(wChild(p, 'pPr'));
+    const styleId = direct.style || defaultParaStyle;
+    const pp = Object.assign({}, defaultsP, styleChain(styleId, 'p'), direct);
+    const line = pp.line ? (pp.line.mult ? Math.round(pp.line.mult * 100) / 100 + '' : pp.line.pt + ' пт (точно)') : '1';
+    add(lines, line, text.length);
+    add(indents, pp.indent != null ? (Math.round(pp.indent * 100) / 100) + ' см' : '0 см', text.length);
+    add(aligns, pp.jc || 'left', text.length);
+    const paraRun = Object.assign({}, defaultsR, styleChain(styleId, 'r'));
+    for(const r of p.getElementsByTagNameNS(W_NS, 'r')){
+      const n = [...r.getElementsByTagNameNS(W_NS, 't')].reduce((sum, t) => sum + t.textContent.length, 0);
+      if(!n) continue;
+      const direct = readRunProps(wChild(r, 'rPr'));
+      const rp = Object.assign({}, paraRun, direct.rstyle ? styleChain(direct.rstyle, 'r') : {}, direct);
+      add(fonts, fontName(rp) || 'не задан', n);
+      add(sizes, rp.size ? rp.size + ' пт' : 'не задан', n);
+    }
+  }
+
+  const share = (map, ok) => {
+    let total = 0, good = 0;
+    for(const [k, v] of map){ total += v; if(ok(k)) good += v; }
+    return total ? good / total : 0;
+  };
+  const top = map => [...map.entries()].sort((a, b) => b[1] - a[1])
+    .slice(0, 2).map(([k, v]) => `${k} (${Math.round(v / Math.max(1, [...map.values()].reduce((a, b) => a + b, 0)) * 100)}%)`).join(', ');
+  const isJustify = k => k === 'both' || k === 'distribute' || k === 'justify';
+  const alignName = k => ({ both: 'по ширине', distribute: 'по ширине', justify: 'по ширине',
+    left: 'по левому краю', start: 'по левому краю', center: 'по центру', right: 'по правому краю', end: 'по правому краю' })[k] || k;
+  const alignTop = new Map([...aligns].map(([k, v]) => [alignName(k), v]));
+
+  const checks = [];
+  const rule = (label, expected, map, ok) => {
+    const s = share(map, ok);
+    checks.push({ label, expected, actual: top(map), ok: s >= FORMAT_RULES.share, share: Math.round(s * 100) });
+  };
+  if(bodyChars > 0){
+    rule('Шрифт', FORMAT_RULES.font, fonts, k => k.toLowerCase() === 'times new roman');
+    rule('Кегль', FORMAT_RULES.size + ' пт', sizes, k => k === FORMAT_RULES.size + ' пт');
+    rule('Межстрочный интервал', '1,5', lines, k => Math.abs(parseFloat(k) - FORMAT_RULES.line) < 0.05 && !k.includes('пт'));
+    rule('Абзацный отступ', '1,25 см', indents, k => Math.abs(parseFloat(k) - FORMAT_RULES.indentCm) < 0.06);
+    rule('Выравнивание', 'по ширине', alignTop, k => k === 'по ширине');
+  }
+
+  // Поля: проверяем все разделы документа
+  const sections = [...doc.getElementsByTagNameNS(W_NS, 'sectPr')];
+  const marginIssues = new Set();
+  let marginActual = '';
+  for(const sect of sections){
+    const pg = wChild(sect, 'pgMar');
+    if(!pg) continue;
+    const mm = k => Math.round(+wAttr(pg, k) / 56.7);
+    const m = { left: mm('left'), right: mm('right'), top: mm('top'), bottom: mm('bottom') };
+    if(!marginActual) marginActual = `левое ${m.left}, правое ${m.right}, верхнее ${m.top}, нижнее ${m.bottom} мм`;
+    for(const [k, v] of Object.entries(FORMAT_RULES.margins)){
+      if(Math.abs(m[k] - v) > 1){
+        marginIssues.add(`${{ left: 'левое', right: 'правое', top: 'верхнее', bottom: 'нижнее' }[k]} ${m[k]} мм вместо ${v}`);
+      }
+    }
+  }
+  if(marginActual){
+    checks.unshift({ label: 'Поля', expected: 'левое 30, правое 10, верхнее 20, нижнее 20 мм',
+      actual: marginIssues.size ? [...marginIssues].join('; ') : marginActual, ok: marginIssues.size === 0 });
+  }
+
+  // Номера страниц: поле PAGE в верхнем колонтитуле, абзац по центру
+  const rels = {};
+  if(files['word/_rels/document.xml.rels']){
+    for(const rel of parse(files['word/_rels/document.xml.rels']).getElementsByTagNameNS('*', 'Relationship')){
+      rels[rel.getAttribute('Id')] = 'word/' + rel.getAttribute('Target').replace(/^\/?word\//, '');
+    }
+  }
+  const pageField = xml => /<w:fldSimple[^>]*PAGE\b/.test(xml) || /<w:instrText[^>]*>\s*PAGE\b/.test(xml);
+  let numbering = 'none';
+  for(const sect of sections){
+    for(const kind of ['headerReference', 'footerReference']){
+      for(const ref of wChildren(sect, kind)){
+        const target = rels[ref.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id')];
+        const xml = files[target];
+        if(!xml || !pageField(xml)) continue;
+        if(kind === 'footerReference'){ if(numbering === 'none') numbering = 'bottom'; continue; }
+        // Абзац с номером: выравнивание из самого абзаца или его стиля
+        const hdr = parse(xml);
+        const para = [...hdr.getElementsByTagNameNS(W_NS, 'p')].find(p => pageField(new XMLSerializer().serializeToString(p)));
+        const props = para ? Object.assign({}, defaultsP, styleChain(readParaProps(wChild(para, 'pPr')).style, 'p'), readParaProps(wChild(para, 'pPr'))) : {};
+        numbering = props.jc === 'center' ? 'top-center' : 'top-other';
+      }
+    }
+    if(numbering === 'top-center') break;
+  }
+  checks.push({
+    label: 'Номера страниц', expected: 'вверху по центру',
+    actual: { 'top-center': 'вверху по центру', 'top-other': 'вверху, но не по центру', bottom: 'внизу страницы', none: 'не найдены' }[numbering],
+    ok: numbering === 'top-center'
+  });
+
+  // Объём: число страниц из свойств документа (Word записывает его при
+  // сохранении). Положения считают объём без списка литературы и приложений,
+  // поэтому вычитаем их долю по тексту. Если Word не записал число страниц
+  // (файл сделан другой программой) — оцениваем по ~1800 знаков на страницу.
+  const allText = paragraphs.map(textOf);
+  const totalChars = allText.reduce((s, t) => s + t.length, 0) || 1;
+  // Заголовок списка литературы. \p{L} и флаг u — потому что \w и \b в JS
+  // не понимают кириллицу. «использован\p{L}*» ловит и опечатку «ИСПОЛЬЗОВАНЫХ».
+  // Строки оглавления («…………47», «Литература28») пропускаем; берём последнее
+  // вхождение. Просто «Литература» — запасной вариант: так часто называют
+  // и подраздел внутри списка.
+  const biblioStrong = /^\s*(список\s+(использован\p{L}*\s+)?(источников|литературы)|библиографическ\p{L}*\s+список)/iu;
+  const biblioWeak = /^\s*литература\s*:?\s*$/iu;
+  const isTocLine = t => /[….]{3,}|\d\s*$/.test(t);
+  const findLast = re => allText.reduce((at, t, i) => (t.length < 120 && !isTocLine(t) && re.test(t)) ? i : at, -1);
+  let biblioAt = findLast(biblioStrong);
+  if(biblioAt < 0) biblioAt = findLast(biblioWeak);
+  const charsBefore = biblioAt > 0 ? allText.slice(0, biblioAt).reduce((s, t) => s + t.length, 0) : totalChars;
+  // Число страниц Word записывает при сохранении, но иногда не обновляет:
+  // в одной из курсовых стояла 1 страница при 50 тыс. знаков. Страница
+  // в 14-м кегле с интервалом 1,5 вмещает не больше ~2500 знаков, поэтому
+  // значение с большей плотностью считаем устаревшим.
+  const savedPages = +(files['docProps/app.xml'] || '').match(/<Pages>(\d+)<\/Pages>/)?.[1] || 0;
+  const wordPages = savedPages && totalChars / savedPages <= 2500 ? savedPages : 0;
+  const pagesTotal = wordPages || Math.ceil(totalChars / CHARS_PER_PAGE);
+  // Точнее всего — по оглавлению: там записан номер страницы, с которой
+  // начинается список литературы («СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ……47»).
+  // Титульный лист — первая страница, значит основной текст занимает 46.
+  // Оглавление бывает внутри блока w:sdt, поэтому ищем по всем абзацам.
+  let tocPage = 0;
+  for(const p of doc.getElementsByTagNameNS(W_NS, 'p')){
+    const t = textOf(p);
+    const m = t.length < 160 && (biblioStrong.test(t) || /^\s*литература/iu.test(t)) && t.match(/(\d{1,3})\s*$/);
+    if(m && +m[1] > 1){ tocPage = +m[1]; break; }
+  }
+  const pagesMain = tocPage ? tocPage - 1 : Math.round(pagesTotal * charsBefore / totalChars);
+
+  return {
+    checks,
+    pagesTotal,
+    pagesMain,
+    pagesSource: wordPages ? 'word' : 'estimate',
+    pagesMainSource: tocPage ? 'toc' : 'proportion',
+    bibliographyFound: biblioAt > 0,
+    bodyChars
+  };
+}
+
+// Сводка требований положения для выбранного типа работы: заимствования,
+// объём и оформление. Используется и на экране, и в скачиваемом отчёте.
+function requirementChecks(r){
+  const type = WORK_TYPES[r.work_type] || WORK_TYPES.none;
+  if(r.work_type === 'none' || !WORK_TYPES[r.work_type]) return null;
+  const rows = [];
+  if(type.borrowMax != null){
+    const searched = r.search_stats && r.search_stats.okBases.length > 0;
+    rows.push({
+      label: 'Заимствования', expected: `не более ${type.borrowMax}%`,
+      actual: searched ? `${r.borrowed_percent}% по открытым базам` : 'не проверены: базы не ответили',
+      ok: searched ? r.borrowed_percent <= type.borrowMax : null
+    });
+  }
+  const f = r.formatting;
+  if(f && !f.error){
+    const [lo, hi] = type.pages;
+    rows.push({
+      label: 'Объём', expected: `${lo}–${hi} страниц без списка литературы и приложений`,
+      actual: f.pagesMainSource === 'toc'
+        ? `${f.pagesMain} стр. (список литературы начинается на с. ${f.pagesMain + 1} по оглавлению)`
+        : `≈ ${f.pagesMain} стр.` + (f.pagesSource === 'word' ? ` (всего ${f.pagesTotal} по данным Word)` : ' (оценка по числу знаков)'),
+      ok: f.pagesMain >= lo && f.pagesMain <= hi
+    });
+    rows.push(...f.checks);
+  }
+  return { type, rows, formattingNote: f ? (f.error ? `Оформление не проверено: ${f.error}.` : '') : 'Оформление проверяется только у файлов DOCX.' };
+}
+
+// =============================================================================
 // ЛОКАЛЬНЫЙ АНАЛИЗ — ГЛАВНАЯ ФУНКЦИЯ.
 //
 // Здесь реализованы 7 стилометрических метрик из исследования:
@@ -2081,6 +2534,35 @@ function zipfDeviation(tokens){
   return Math.abs(slope + 1); // расстояние от идеала -1
 }
 
+// Метрики словаря (TTR, R Оноре, K Юла, W Брюне, Ципф, уникальные пары)
+// сильно зависят от длины текста: в коротком тексте почти все слова
+// уникальны, в длинном доля уникальных падает сама собой. На целом тексте
+// курсовая в 6700 слов получала по TTR «100% ИИ», а ИИ-текст в 240 слов —
+// «0%». Поэтому считаем метрику на окнах по 300 слов и усредняем: так
+// тексты разной длины сравниваются на равных.
+const METRIC_WINDOW = 300;
+function windowedMetric(tokens, fn){
+  if(tokens.length < METRIC_WINDOW * 1.5) return fn(tokens);
+  const values = [];
+  for(let i = 0; i + METRIC_WINDOW <= tokens.length; i += METRIC_WINDOW){
+    const v = fn(tokens.slice(i, i + METRIC_WINDOW));
+    if(Number.isFinite(v) && v !== 0) values.push(v);
+  }
+  return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+}
+
+// Доля пар соседних слов, встретившихся один раз
+function uniqueBigramShare(tokens){
+  const bigrams = new Map();
+  for(let i = 0; i < tokens.length - 1; i++){
+    const bg = tokens[i] + ' ' + tokens[i + 1];
+    bigrams.set(bg, (bigrams.get(bg) || 0) + 1);
+  }
+  let unique = 0;
+  bigrams.forEach(v => { if(v === 1) unique++; });
+  return unique / (bigrams.size || 1);
+}
+
 // =============================================================================
 
 // Последняя рекомендация в любом отчёте — и в локальном, и в API-режиме
@@ -2093,8 +2575,8 @@ function localAnalyze(text){
   const wordCount = tokens.length || 1;
   const charCount = text.length;
   const sentenceCount = sentences.length || 1;
-  // Стандартный размер страницы — около 1800 символов с пробелами
-  const pages = Math.max(1, Math.ceil(charCount / 1800));
+  // Число страниц — по средней плотности текста курсовых и ВКР (CHARS_PER_PAGE)
+  const pages = Math.max(1, Math.ceil(charCount / CHARS_PER_PAGE));
 
   // ДЕТЕКТОР ПОДОЗРИТЕЛЬНОСТИ — делается первым, потому что обнаружение
   // манипуляций важнее самих метрик. Если документ модифицирован, остальной
@@ -2133,27 +2615,30 @@ function localAnalyze(text){
   const lemmas = tokens.map(t => pseudoLemma(t));
   const mtldScore = mtld(lemmas);
   const hddScore = hdd(lemmas);
-  const honoreScore = honoreR(lemmas);
-  const yuleScore = yuleK(lemmas);
-  const brunetScore = brunetW(lemmas);
-  const zipfDev = zipfDeviation(lemmas);
+  const honoreScore = windowedMetric(lemmas, honoreR);
+  const yuleScore = windowedMetric(lemmas, yuleK);
+  const brunetScore = windowedMetric(lemmas, brunetW);
+  const zipfDev = windowedMetric(lemmas, zipfDeviation);
+  // TTR в оценке — по окнам; общий TTR остаётся только для текста отчёта
+  const ttrWindowed = windowedMetric(lemmas, w => new Set(w).size / (w.length || 1));
 
   // 3. ПЛОТНОСТЬ МАРКЕРОВ ИИ — находим в тексте характерные ИИ-клише
-  const markersRu = countMarkers(text, AI_MARKERS_RU);
-  const markersEn = countMarkers(text, AI_MARKERS_EN);
-  const totalMarkers = markersRu.count + markersEn.count;
-  const markerDensity = totalMarkers / (wordCount / 100); // на 100 слов
+  // Плотность — взвешенная: сильное клише = 1, обычная научная связка = 0.2
+  const markers = countMarkers(text, AI_MARKERS);
+  const markerDensity = markers.score / (wordCount / 100); // на 100 слов
+  // Отдельно — только сильные клише. В семи юридических курсовых и статьях
+  // их было 0–0.02 на 100 слов, в текстах в манере нейросетей — 9–12.
+  const strongClicheDensity = markers.hits.filter(h => h.weight >= MARKER_STRONG).length / (wordCount / 100);
+  // Самые частые найденные маркеры — для пояснения на вкладке «ИИ-анализ»
+  const markerTop = Object.values(markers.hits.reduce((acc, h) => {
+    acc[h.text] = acc[h.text] || { text: h.text, count: 0, strong: h.weight >= MARKER_STRONG };
+    acc[h.text].count++;
+    return acc;
+  }, {})).sort((a, b) => (b.strong - a.strong) || (b.count - a.count)).slice(0, 12);
 
   // 4. UNIQUE BIGRAM RATIO — доля уникальных пар соседних слов.
   // Низкая доля значит, что текст сильно повторяется в шаблонах.
-  const bigrams = new Map();
-  for(let i = 0; i < tokens.length - 1; i++){
-    const bg = tokens[i] + ' ' + tokens[i + 1];
-    bigrams.set(bg, (bigrams.get(bg) || 0) + 1);
-  }
-  let uniqueBigrams = 0;
-  bigrams.forEach(v => { if(v === 1) uniqueBigrams++; });
-  const uniqueBigramRatio = uniqueBigrams / (bigrams.size || 1);
+  const uniqueBigramRatio = windowedMetric(tokens, uniqueBigramShare);
 
   // 5. EM-DASH DENSITY — плотность длинных тире на 10 предложений.
   // GPT-4 и более новые модели характерно злоупотребляют тире.
@@ -2180,38 +2665,46 @@ function localAnalyze(text){
   const averageSentenceLength = wordCount / sentenceCount;
   const fleschRu = 206.835 - 1.52 * averageSentenceLength - 65.14 * averageSyllablesPerWord;
 
-  // ИТОГОВЫЙ AI-СКОР v8.0 — комбинируем 12 метрик с научно-обоснованными весами.
+  // ИТОГОВЫЙ AI-СКОР v8.0 — комбинируем 12 метрик с весами.
   // Каждая метрика преобразуется в значение 0..1 (1 = «точно ИИ»),
   // потом считается взвешенное среднее с логистическим сглаживанием.
-  // Это даёт более точную оценку, чем простое накопление очков.
+  //
+  // Если метрику не на чем посчитать (MTLD короче 50 слов, HD-D короче 42,
+  // Ципф меньше 30 разных слов), её функция возвращает 0. Раньше этот ноль
+  // проходил проверку «меньше порога» и засчитывался как стопроцентный
+  // ИИ-признак — короткие тексты выглядели машинными. Теперь такие метрики
+  // получают v = null и в оценке не участвуют.
+  //
+  // name/value/rule — для разбивки «из чего сложился процент» в интерфейсе.
+  const pct = v => (v * 100).toFixed(0) + '%';
   const features = [
-    // Burstiness: чем меньше, тем больше похоже на ИИ (вес 12%)
-    { v: burstiness < 0.40 ? 1 : Math.max(0, (0.55 - burstiness) / 0.15), w: 0.12 },
-    // MATTR/TTR: низкое значит однообразный словарь (вес 8%)
-    { v: ttr < 0.42 ? 1 : Math.max(0, (0.55 - ttr) / 0.13), w: 0.08 },
-    // MTLD: главная метрика лексического разнообразия (вес 18%)
-    { v: mtldScore < 75 ? 1 : Math.max(0, (95 - mtldScore) / 20), w: 0.18 },
-    // HD-D: гипергеометрическое разнообразие (вес 10%)
-    { v: hddScore < 0.78 ? 1 : Math.max(0, (0.85 - hddScore) / 0.07), w: 0.10 },
-    // Honoré's R: чувствителен к гапаксам (вес 8%)
-    { v: honoreScore < 1200 ? 1 : Math.max(0, (1800 - honoreScore) / 600), w: 0.08 },
-    // Yule's K: высокая концентрация повторов = признак ИИ (вес 6%)
-    { v: yuleScore > 220 ? 1 : Math.max(0, (yuleScore - 150) / 70), w: 0.06 },
-    // Маркеры ИИ-клише (вес 12%)
-    { v: Math.min(1, markerDensity / 1.0), w: 0.12 },
-    // Канцелярит (вес 6%)
-    { v: Math.min(1, kanselyaritDensity / 0.045), w: 0.06 },
-    // Em-dash злоупотребление (вес 4%)
-    { v: emDashDensity > 4 ? 1 : Math.max(0, emDashDensity / 4), w: 0.04 },
-    // Уникальность биграмм (вес 6%)
-    { v: uniqueBigramRatio < 0.75 ? 1 : Math.max(0, (0.85 - uniqueBigramRatio) / 0.10), w: 0.06 },
-    // Отклонение от закона Ципфа: слишком ровное распределение = ИИ (вес 5%)
-    { v: zipfDev < 0.08 ? 1 : 0, w: 0.05 },
-    // Brunet's W (вес 5%)
-    { v: brunetScore > 11.5 ? 1 : Math.max(0, (brunetScore - 10) / 1.5), w: 0.05 }
+    { name: 'Вариативность длины предложений', value: burstiness.toFixed(2), rule: 'ИИ-признак ниже 0.55',
+      v: sentenceCount < 3 ? null : burstiness < 0.40 ? 1 : Math.max(0, (0.55 - burstiness) / 0.15), w: 0.12 },
+    { name: 'Доля уникальных слов (TTR)', value: pct(ttrWindowed), rule: 'ИИ-признак ниже 55%',
+      v: ttrWindowed < 0.42 ? 1 : Math.max(0, (0.55 - ttrWindowed) / 0.13), w: 0.08 },
+    { name: 'Лексическое разнообразие (MTLD)', value: mtldScore ? mtldScore.toFixed(0) : '—', rule: 'ИИ-признак ниже 95',
+      v: mtldScore === 0 ? null : mtldScore < 75 ? 1 : Math.max(0, (95 - mtldScore) / 20), w: 0.18 },
+    { name: 'Разнообразие выборки слов (HD-D)', value: hddScore ? hddScore.toFixed(2) : '—', rule: 'ИИ-признак ниже 0.85',
+      v: hddScore === 0 ? null : hddScore < 0.78 ? 1 : Math.max(0, (0.85 - hddScore) / 0.07), w: 0.10 },
+    { name: 'Редкие слова (R Оноре)', value: honoreScore.toFixed(0), rule: 'ИИ-признак ниже 1800',
+      v: honoreScore < 1200 ? 1 : Math.max(0, (1800 - honoreScore) / 600), w: 0.08 },
+    { name: 'Концентрация повторов (K Юла)', value: yuleScore.toFixed(0), rule: 'ИИ-признак выше 150',
+      v: yuleScore > 220 ? 1 : Math.max(0, (yuleScore - 150) / 70), w: 0.06 },
+    { name: 'ИИ-клише на 100 слов', value: markerDensity.toFixed(2), rule: 'сильное клише = 1, научная связка = 0.2',
+      v: Math.min(1, markerDensity / 1.0), w: 0.12 },
+    { name: 'Канцелярит на 100 слов', value: (kanselyaritDensity * 100).toFixed(1), rule: '«является», «данный», «который»',
+      v: Math.min(1, kanselyaritDensity / 0.045), w: 0.06 },
+    { name: 'Длинные тире на 10 предложений', value: emDashDensity.toFixed(1), rule: 'ИИ-признак от 4',
+      v: emDashDensity > 4 ? 1 : Math.max(0, emDashDensity / 4), w: 0.04 },
+    { name: 'Уникальные пары слов', value: pct(uniqueBigramRatio), rule: 'ИИ-признак ниже 85%',
+      v: uniqueBigramRatio < 0.75 ? 1 : Math.max(0, (0.85 - uniqueBigramRatio) / 0.10), w: 0.06 },
+    { name: 'Отклонение от закона Ципфа', value: zipfDev ? zipfDev.toFixed(3) : '—', rule: 'ИИ-признак ниже 0.08',
+      v: zipfDev === 0 ? null : zipfDev < 0.08 ? 1 : 0, w: 0.05 },
+    { name: 'Индекс Брюне (W)', value: brunetScore ? brunetScore.toFixed(1) : '—', rule: 'ИИ-признак выше 10',
+      v: brunetScore === 0 ? null : brunetScore > 11.5 ? 1 : Math.max(0, (brunetScore - 10) / 1.5), w: 0.05 }
   ];
 
-  // Взвешенное среднее с защитой от NaN
+  // Взвешенное среднее; метрики без значения (null/NaN) не учитываются
   let totalWeight = 0, totalValue = 0;
   for (const f of features){
     if (f.v !== null && !isNaN(f.v) && isFinite(f.v)){
@@ -2225,6 +2718,25 @@ function localAnalyze(text){
   let aiScore = Math.round(smoothedScore * 100);
 
   aiScore = Math.min(aiScore, 95);
+  // Нижняя граница по клише: больше одного сильного клише на 100 слов — это
+  // в 50 раз больше, чем в любой из проверенных человеческих работ. Метрики
+  // словаря на таком тексте могут «голосовать за человека», но клише — самый
+  // прямой признак, поэтому итог не опускается ниже порога вердикта «ИИ».
+  const CLICHE_FLOOR_DENSITY = 1;
+  const clicheFloor = strongClicheDensity >= CLICHE_FLOOR_DENSITY && aiScore < 55;
+  if(clicheFloor) aiScore = 55;
+  // На коротком тексте статистика слов ненадёжна — честно предупреждаем
+  const AI_MIN_WORDS = 300;
+  const aiReliable = wordCount >= AI_MIN_WORDS;
+  const aiFeatures = features.map(f => {
+    const used = f.v !== null && isFinite(f.v);
+    return {
+      name: f.name, value: f.value, rule: f.rule, weight: Math.round(f.w * 100),
+      score: used ? Math.round(f.v * 100) : null,
+      // Сколько пунктов «сырого» балла (0–100) дала метрика
+      contribution: used && totalWeight > 0 ? Math.round(f.v * f.w / totalWeight * 1000) / 10 : 0
+    };
+  });
   const aiVerdict = aiScore < 30 ? 'human' : aiScore < 55 ? 'mixed' : 'ai';
 
   // ЦИТИРОВАНИЕ — ищем кавычки и ГОСТ-ссылки [N], [N, с. NN]
@@ -2255,7 +2767,7 @@ function localAnalyze(text){
     const chunkTokens = tokenize(chunk);
     const chunkUniqueLemmas = new Set(chunkTokens.map(t => pseudoLemma(t)));
     const chunkTtr = chunkUniqueLemmas.size / (chunkTokens.length || 1);
-    const chunkMarkers = countMarkers(chunk, AI_MARKERS_RU.concat(AI_MARKERS_EN));
+    const chunkMarkers = countMarkers(chunk, AI_MARKERS);
     const chunkHasQuote = /[«"][^«»""]{15,}[»"]/.test(chunk) || /\[\d+/.test(chunk);
     const chunkShingleTokens = chunkTokens.filter(t => !STOP_RU.has(t)).map(pseudoLemma);
     const chunkShingles = getShingles(chunkShingleTokens, 3);
@@ -2276,16 +2788,18 @@ function localAnalyze(text){
       type = 'citation';
       confidence = 85;
       explanation = 'Содержит корректное оформление цитаты';
-    } else if(chunkMarkers.count >= 2 && chunkTtr < 0.45){
+    } else if(chunkMarkers.score >= 2 && chunkTtr < 0.45){
       type = 'ai_generated';
       // Больше клише и беднее словарь — выше уверенность
-      confidence = clamp(60 + (chunkMarkers.count - 2) * 5 + (0.45 - chunkTtr) * 100, 60, 85);
+      confidence = clamp(60 + (chunkMarkers.score - 2) * 5 + (0.45 - chunkTtr) * 100, 60, 85);
       explanation = 'Высокая плотность ИИ-маркеров, низкое лексическое разнообразие';
-    } else if(chunkMarkers.count >= 3){
+    } else if(chunkMarkers.score >= 3){
       type = 'ai_generated';
-      confidence = clamp(55 + (chunkMarkers.count - 3) * 5, 55, 75);
-      explanation = 'Обнаружены характерные ИИ-клише: ' +
-        chunkMarkers.hits.slice(0, 3).map(h => h.text).join(', ');
+      confidence = clamp(55 + (chunkMarkers.score - 3) * 5, 55, 75);
+      const strongHits = chunkMarkers.hits.filter(h => h.weight >= MARKER_STRONG);
+      explanation = strongHits.length
+        ? 'Обнаружены характерные ИИ-клише: ' + strongHits.slice(0, 3).map(h => h.text).join(', ')
+        : 'Очень много типовых связок: ' + chunkMarkers.hits.slice(0, 3).map(h => h.text).join(', ');
     } else if(chunkRepRate > 0.15){
       // Повторы внутри текста — не заимствование, а шаблонность стиля
       explanation = 'Повторяющиеся речевые шаблоны (высокая шаблонность)';
@@ -2312,7 +2826,17 @@ function localAnalyze(text){
     total_sentences: sentenceCount,
     total_pages: pages,
     ai_verdict: aiVerdict,
-    ai_confidence: 50 + Math.floor(Math.min(burstiness * 30 + markerDensity * 10, 40)),
+    // Уверенность ниже на коротких текстах: статистике там не на что опереться
+    ai_confidence: aiReliable
+      ? 50 + Math.floor(Math.min(burstiness * 30 + markerDensity * 10, 40))
+      : Math.min(40, 20 + Math.floor(wordCount / 15)),
+    ai_reliable: aiReliable,
+    ai_features: aiFeatures,
+    ai_raw_score: Math.round(rawScore * 100),
+    ai_cliche_floor: clicheFloor,
+    ai_local_percent: aiScore,
+    ai_strong_cliches: Math.round(strongClicheDensity * 100) / 100,
+    ai_markers: markerTop,
     fragments,
     suspicious, // Результаты детектора подозрительности
     // Источники появятся после поиска по базам (runAnalysis)
@@ -2327,12 +2851,14 @@ function localAnalyze(text){
         `TTR = ${(ttr * 100).toFixed(1)}%, MATTR = ${(mattr * 100).toFixed(1)}%. ` +
         `Burstiness = ${burstiness.toFixed(3)} (вариативность длин предложений). ` +
         `Flesch-Kincaid (русский) = ${fleschRu.toFixed(1)}. ` +
-        `Плотность ИИ-маркеров: ${markerDensity.toFixed(2)} на 100 слов. ` +
+        `Плотность ИИ-клише (взвешенная): ${markerDensity.toFixed(2)} на 100 слов. ` +
         (aiScore > 55 ? 'Совокупность признаков указывает на возможную ИИ-генерацию.' :
          aiScore > 30 ? 'Обнаружены отдельные признаки шаблонности.' :
          'Текст демонстрирует вариативность, характерную для человеческого письма.')
     },
     recommendations: [
+      aiReliable ? null
+        : `Текст короче ${AI_MIN_WORDS} слов (${wordCount}): оценка ИИ-генерации по стилю на таком объёме ненадёжна.`,
       aiScore > 55
         ? 'Текст имеет признаки ИИ-генерации. Рекомендуется переработка: разнообразьте структуру предложений, уберите клише («в современном мире», «стоит отметить», «таким образом»).'
         : aiScore > 30
@@ -2742,8 +3268,7 @@ function extractKeyPhrases(text, maxPhrases = 5){
     );
     let best = null, bestScore = -Infinity;
     for(const s of part){
-      const low = s.toLowerCase();
-      const markers = AI_MARKERS_RU.filter(m => low.includes(m)).length;
+      const markers = countMarkers(s, AI_MARKERS).score;
       const content = tokenize(s).filter(t => !STOP_RU.has(t) && t.length > 4);
       const score = content.length - markers * 3;
       if(score > bestScore){ bestScore = score; best = content; }
@@ -3271,6 +3796,59 @@ function mkFrag(fragment){
   </div>`;
 }
 
+// Карточка «Требования положения» на вкладке «Обзор»
+function requirementsHtml(r){
+  const req = requirementChecks(r);
+  if(!req){
+    return `<div class="card"><div class="card-t">Требования положения</div>
+      <div class="hint">Выберите тип работы на главном экране — сервис проверит объём,
+      оформление и допустимый процент заимствований по положениям БЮИ МВД России.</div></div>`;
+  }
+  const failed = req.rows.filter(x => x.ok === false).length;
+  const mark = ok => ok === true ? ['✓', 'var(--grn)'] : ok === false ? ['✗', 'var(--red)'] : ['—', 'var(--dim)'];
+  return `<div class="card">
+    <div class="card-t">Требования: ${escapeHtml(req.type.full)}</div>
+    ${req.rows.length ? `<div class="hint" style="margin-bottom:6px;color:${failed ? 'var(--red)' : 'var(--grn)'}">${failed
+      ? `Не выполнено требований: ${failed} из ${req.rows.length}`
+      : 'Все проверенные требования выполнены'}</div>` : ''}
+    ${req.rows.map(x => { const [icon, color] = mark(x.ok); return `<div class="req">
+      <div class="req-i" style="color:${color}">${icon}</div>
+      <div class="req-b"><div class="req-l">${escapeHtml(x.label)}: ${escapeHtml(x.actual)}</div>
+        <div class="req-v">Требуется: ${escapeHtml(x.expected)}</div></div>
+    </div>`; }).join('')}
+    ${req.formattingNote ? `<div class="hint" style="margin-top:8px">${escapeHtml(req.formattingNote)}</div>` : ''}
+    ${req.type.borrowMax != null ? `<div class="hint" style="margin-top:8px">Процент заимствований здесь — по открытым
+      базам. Официальный результат даёт «Антиплагиат» МВД: у него есть закрытые базы.</div>` : ''}
+    <div class="hint" style="margin-top:8px">${escapeHtml(req.type.source)}</div>
+  </div>`;
+}
+
+// Карточка «Из чего сложилась оценка» на вкладке «ИИ-анализ»: каждая
+// метрика с её значением, порогом, весом и вкладом, плюс найденные клише
+function aiBreakdownHtml(r){
+  if(!r.ai_features) return '';
+  const markers = r.ai_markers || [];
+  const strong = markers.filter(m => m.strong), weak = markers.filter(m => !m.strong);
+  const list = arr => arr.map(m => `${escapeHtml(m.text)} ×${escapeHtml(m.count)}`).join(', ');
+  return `<div class="card">
+    <div class="card-t" style="color:var(--ap-ai)">Из чего сложилась оценка</div>
+    <div class="hint" style="margin-bottom:6px">Метрики стиля, посчитанные в браузере. Сумма вкладов —
+      сырой балл ${escapeHtml(r.ai_raw_score)} из 100, после сглаживания — ${escapeHtml(r.ai_local_percent)}%.
+      ${r.ai_cliche_floor ? 'Итог поднят до 55%: больше одного сильного ИИ-клише на 100 слов.' : ''}
+      ${r._hybrid ? 'В API-режиме итог дополнительно учитывает оценку языковой модели.' : ''}</div>
+    ${r.ai_features.map(f => `<div class="feat">
+      <div class="feat-h"><span class="feat-n">${escapeHtml(f.name)}</span>
+        <span class="feat-v">${escapeHtml(f.value)} · ${f.score == null ? 'не учтена' : '+' + escapeHtml(f.contribution)}</span></div>
+      <div class="feat-r">${escapeHtml(f.rule)} · вес ${escapeHtml(f.weight)}%</div>
+      <div class="feat-bar"><div style="width:${f.score == null ? 0 : Math.max(0, Math.min(100, +f.score))}%"></div></div>
+    </div>`).join('')}
+    ${strong.length || weak.length ? `<div style="margin-top:12px;font-size:12px;line-height:1.7;color:var(--txt2)">
+      ${strong.length ? `<b style="color:var(--txt)">ИИ-клише:</b> ${list(strong)}<br>` : ''}
+      ${weak.length ? `<b style="color:var(--txt)">Научные связки (вес 0,2):</b> ${list(weak)}` : ''}
+    </div>` : ''}
+  </div>`;
+}
+
 // Сводка о поиске источников: по скольким работам проверен текст и какие
 // базы не ответили. Без неё 0% заимствований нельзя отличить от «не проверялось».
 function searchSummaryHtml(st){
@@ -3418,6 +3996,18 @@ function renderHome(){
   <div class="hint">После проверки откроется почтовый клиент с готовым письмом</div>
 </div>
 
+<div style="margin:14px 0">
+  <label>Тип работы — для проверки требований положения БЮИ МВД</label>
+  <div class="prov" id="workGrid">
+    ${Object.entries(WORK_TYPES).map(([key, t]) =>
+      `<button class="prov-b ${S.workType === key ? 'on' : ''}" data-w="${key}">${escapeHtml(t.name)}</button>`
+    ).join('')}
+  </div>
+  <div class="hint">${S.workType === 'none'
+    ? 'Выберите тип, чтобы проверить объём, оформление и допустимый процент заимствований.'
+    : escapeHtml(WORK_TYPES[S.workType].source) + '. Оформление проверяется у файлов DOCX.'}</div>
+</div>
+
 <details>
   <summary>⚙ Настройки AI (расширенный анализ)</summary>
   <div class="det-b">
@@ -3537,6 +4127,15 @@ function renderHome(){
     };
   }
 
+  // Тип работы — сохраняем и перерисовываем подсказку
+  $$('#workGrid .prov-b').forEach(btn => {
+    btn.onclick = () => {
+      S.workType = btn.dataset.w;
+      saveState();
+      renderHome();
+    };
+  });
+
   // Главная кнопка — запуск анализа
   go.onclick = doRun;
 }
@@ -3559,6 +4158,16 @@ async function loadFile(file){
     const text = await readFile(file);
     // Нормализация: убираем CRLF, неразрывные пробелы и лишние пробелы по краям
     S.text = text.replace(/\r\n/g, '\n').replace(/\u00a0/g, ' ').trim();
+    // Оформление можно проверить только у DOCX: в PDF и TXT стилей Word нет
+    S.docxFormat = null;
+    if(file.name.toLowerCase().endsWith('.docx')){
+      try{
+        S.docxFormat = await checkDocxFormatting(await file.arrayBuffer());
+      }catch(e){
+        console.warn('Formatting check failed:', e);
+        S.docxFormat = { error: e.message };
+      }
+    }
     toast(`Файл "${file.name}" загружен (${S.text.length} символов)`, 'success');
     renderHome();
   }catch(e){
@@ -3638,6 +4247,8 @@ async function doRun(){
       const pl = $('#pl');
       if(pl) pl.textContent = message;
     });
+    S.res.work_type = S.workType;
+    S.res.formatting = S.docxFormat;
 
     clearInterval(progressInterval);
 
@@ -3760,13 +4371,15 @@ ${r.suspicious && r.suspicious.suspiciousScore > 0.05 ? `
     ${mkII('Слов', (r.total_words || 0).toLocaleString('ru'))}
     ${mkII('Символов', (r.total_chars || 0).toLocaleString('ru'))}
     ${mkII('Предложений', escapeHtml(r.total_sentences || '—'))}
-    ${mkII('Страниц', escapeHtml(r.total_pages || '—'))}
+    ${mkII('Страниц', escapeHtml(r.formatting && !r.formatting.error ? r.formatting.pagesTotal : (r.total_pages || '—')))}
     ${mkII('Режим', r._hybrid ? 'API + Локально' : 'Локальный')}
     ${mkII('Источников проверено', r.search_stats ? escapeHtml(r.search_stats.withText) + ' с текстом' : '—')}
     ${mkII('Вердикт', r.ai_verdict === 'human' ? 'Человек' : r.ai_verdict === 'mixed' ? 'Смешанный' : 'ИИ')}
     ${mkII('Уверенность', escapeHtml(r.ai_confidence || 0) + '%')}
   </div>
 </div>
+
+${requirementsHtml(r)}
 
 ${r._apiError ? `<div class="warn">⚠ API недоступен (${escapeHtml(r._apiError)}). Показан локальный анализ.</div>` : ''}
 
@@ -3846,6 +4459,8 @@ ${checked.length ? `
   ${r._fastDetectGPT ? mkStat('Fast-DetectGPT', r._fastDetectGPT.aiProbability + '%', 'var(--acc2)', 'bolt') : ''}
 </div>
 
+${r.ai_reliable === false ? `<div class="warn">⚠ Текст короче 300 слов (${escapeHtml(r.total_words)}): оценка ИИ-генерации по стилю на таком объёме ненадёжна.</div>` : ''}
+
 <div class="card">
   <div class="verd" style="background:${verdictColor}15;border:1px solid ${verdictColor}40">
     <div class="verd-i">${
@@ -3891,7 +4506,9 @@ ${r.ai_analysis ? `
   ${r.ai_analysis.details ? `
     <div style="font-size:12px;color:var(--txt2);line-height:1.7;padding:12px 14px;background:var(--s2);border-radius:10px;border-left:3px solid var(--ap-ai)">${escapeHtml(r.ai_analysis.details)}</div>
   ` : ''}
-</div>` : ''}`;
+</div>` : ''}
+
+${aiBreakdownHtml(r)}`;
   }
 
   // ===== ОБЩИЙ КАРКАС РЕЗУЛЬТАТОВ =====
@@ -3959,6 +4576,7 @@ ${content}
     S.res = null;
     S.text = '';
     S.fn = '';
+    S.docxFormat = null;
     S.tab = 'overview';
     clearDraft();
     renderHome();
@@ -4077,6 +4695,13 @@ body{font-family:'Segoe UI','Helvetica Neue',system-ui,sans-serif;background:#f5
 .mt.cited{border-left-color:#58B5F2;background:#f0f8ff}
 .mt .sx{color:#64748b;margin-top:3px}
 .note{font-size:12px;color:#64748b;margin-bottom:12px}
+.rq{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #e5e7eb;font-size:13px;line-height:1.5;page-break-inside:avoid}
+.rq .k{width:18px;flex-shrink:0;text-align:center;font-weight:800}
+.rq .e{color:#64748b;font-size:12px}
+table.mx{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+table.mx th,table.mx td{padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:top}
+table.mx th{color:#64748b;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+table.mx td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .rec{padding:11px 16px;background:#fffbeb;border-left:3px solid #FFD60A;border-radius:0 8px 8px 0;margin-bottom:6px;font-size:13px;line-height:1.55}
 .susp{padding:14px 18px;background:#fffbeb;border:1px solid #FFD60A;border-radius:12px;margin-bottom:14px}
 .susp .t{font-size:14px;font-weight:700;color:#FF9F0A;margin-bottom:8px}
@@ -4154,6 +4779,23 @@ ${r.suspicious && r.suspicious.suspiciousScore > 0.05 ? `
   </div>
 </div>
 
+${(() => {
+  // Требования положения — только в полном отчёте
+  const req = aiOnly ? null : requirementChecks(r);
+  if(!req) return '';
+  const mark = ok => ok === true ? ['✓', '#30D158'] : ok === false ? ['✗', '#FF453A'] : ['—', '#94a3b8'];
+  return `<div class="s">
+  <h2>Требования: ${escapeHtml(req.type.full)}</h2>
+  ${req.rows.map(x => { const [icon, color] = mark(x.ok); return `<div class="rq">
+    <div class="k" style="color:${color}">${icon}</div>
+    <div><b>${escapeHtml(x.label)}:</b> ${escapeHtml(x.actual)}<div class="e">Требуется: ${escapeHtml(x.expected)}</div></div>
+  </div>`; }).join('')}
+  ${req.formattingNote ? `<div class="note" style="margin-top:10px">${escapeHtml(req.formattingNote)}</div>` : ''}
+  <div class="note" style="margin-top:10px">${escapeHtml(req.type.source)}.${req.type.borrowMax != null
+    ? ' Процент заимствований — по открытым базам; официальный результат даёт «Антиплагиат» МВД.' : ''}</div>
+</div>`;
+})()}
+
 <div class="s">
   <h2>Анализ ИИ-контента</h2>
   <div class="vd" style="background:${verdictColor}18;border:1px solid ${verdictColor}40">
@@ -4177,6 +4819,15 @@ ${r.suspicious && r.suspicious.suspiciousScore > 0.05 ? `
     `<div class="ami"><div class="n">${n}</div><div class="s" style="color:${scoreColor(v)};background:${scoreColor(v)}20">${scoreLabel(v)}</div></div>`
   ).join('')}</div>
   ${r.ai_analysis.details ? `<div style="background:#f8fafc;border-radius:10px;padding:14px 18px;border-left:3px solid #BF5AF2;font-size:13px;color:#475569;line-height:1.7">${escapeHtml(r.ai_analysis.details)}</div>` : ''}` : ''}
+  ${r.ai_reliable === false ? `<div class="note" style="margin-top:10px;color:#FF9F0A">Текст короче 300 слов: оценка ИИ-генерации по стилю ненадёжна.</div>` : ''}
+  ${r.ai_features ? `<table class="mx">
+    <tr><th>Метрика</th><th>Значение</th><th>Порог</th><th>Вклад</th></tr>
+    ${r.ai_features.map(f => `<tr><td>${escapeHtml(f.name)}</td><td class="n">${escapeHtml(f.value)}</td>
+      <td>${escapeHtml(f.rule)}</td><td class="n">${f.score == null ? 'не учтена' : '+' + escapeHtml(f.contribution)}</td></tr>`).join('')}
+  </table>
+  <div class="note" style="margin-top:8px">Сырой балл ${escapeHtml(r.ai_raw_score)} из 100, после сглаживания — ${escapeHtml(r.ai_local_percent)}%.${r.ai_cliche_floor
+    ? ' Итог поднят до 55%: больше одного сильного ИИ-клише на 100 слов.' : ''}${(r.ai_markers || []).some(m => m.strong)
+    ? ' ИИ-клише: ' + escapeHtml(r.ai_markers.filter(m => m.strong).map(m => m.text + ' ×' + m.count).join(', ')) + '.' : ''}</div>` : ''}
 </div>
 
 <div class="s">
@@ -4440,6 +5091,10 @@ function registerServiceWorker(){
 // =============================================================================
 
 function initApp(){
+  // Сохранённый тип работы мог устареть (переименовали или удалили профиль).
+  // Проверка здесь, а не рядом с S: WORK_TYPES объявлена ниже по файлу.
+  if(!WORK_TYPES[S.workType]) S.workType = 'none';
+
   // Восстановление черновика из предыдущей сессии
   const draft = loadDraft();
   if(draft && !S.text){
