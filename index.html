@@ -1380,7 +1380,14 @@ function toast(message, type='info', duration=3500){
   const el = document.createElement('div');
   el.className = `toast t-${type}`;
   const icon = {success:'✓', error:'✕', warn:'⚠', info:'ℹ'}[type] || 'ℹ';
-  el.innerHTML = `<span class="ico">${icon}</span><span>${message}</span>`;
+  // Сообщение вставляем как текст, а не HTML: в него попадают имена файлов
+  // и тексты ошибок от внешних API, которые мы не контролируем.
+  const ico = document.createElement('span');
+  ico.className = 'ico';
+  ico.textContent = icon;
+  const msg = document.createElement('span');
+  msg.textContent = message;
+  el.append(ico, msg);
   host.appendChild(el);
   // Лёгкая вибрация — для мобильного UX
   if(navigator.vibrate) navigator.vibrate(10);
@@ -1525,8 +1532,29 @@ function getShingles(tokens, n=3){
 
 // Экранирование HTML — защита от XSS при отображении пользовательского текста.
 // Без этого пользователь мог бы вставить <script>... и заблокировать приложение.
+// Кавычки тоже экранируем: значения попадают и в атрибуты (value="..."),
+// где одна кавычка позволила бы дописать свой обработчик onerror/onfocus.
+// Числа и прочие типы приводим к строке, чтобы функцию можно было звать для любого поля.
 function escapeHtml(s){
-  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// fetch с ограничением по времени. Без таймаута недоступный из России сервис
+// может держать соединение минутами, и вся проверка «висит» на одном запросе.
+// AbortController вместо AbortSignal.timeout — ради старых Safari на iOS.
+async function fetchWithTimeout(url, options = {}, ms = 8000){
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try{
+    return await fetch(url, { ...options, signal: controller.signal });
+  }catch(e){
+    if(e.name === 'AbortError') throw new Error(`Сервис не ответил за ${Math.round(ms / 1000)} с`);
+    throw e;
+  }finally{
+    clearTimeout(timer);
+  }
 }
 
 // =============================================================================
@@ -1644,20 +1672,35 @@ function cleanSuspicious(text){
 // =============================================================================
 
 const MINHASH_NUM = 128;   // Количество хеш-функций в сигнатуре
-const MINHASH_PRIME = 4294967311; // Большое простое число, чуть больше 2^32
 
-// Генерация случайных коэффициентов для хеш-функций. Делается один раз
-// при загрузке приложения, потом эти коэффициенты используются для всех текстов.
+// Затравки для хеш-функций. Генерируются детерминированно (xorshift32
+// с фиксированным началом), а не через Math.random(): так сигнатуры одного
+// и того же текста совпадают между перезагрузками страницы и их можно
+// сохранять и сравнивать позже.
 const MINHASH_SEEDS = (() => {
-  const seeds = [];
+  const seeds = new Uint32Array(MINHASH_NUM);
+  let x = 0x9E3779B9;
   for(let i = 0; i < MINHASH_NUM; i++){
-    seeds.push([
-      Math.floor(Math.random() * MINHASH_PRIME),
-      Math.floor(Math.random() * MINHASH_PRIME)
-    ]);
+    x ^= x << 13; x >>>= 0;
+    x ^= x >>> 17;
+    x ^= x << 5;  x >>>= 0;
+    seeds[i] = x;
   }
   return seeds;
 })();
+
+// Финализатор MurmurHash3 — перемешивает биты 32-битного числа.
+// Всё считается через Math.imul в 32-битной арифметике. Прежняя формула
+// (a*x + b) mod p перемножала два 32-битных числа в double, результат
+// превышал 2^53, младшие биты терялись, и хеши получались неравномерными.
+function mix32(h){
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85EBCA6B);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xC2B2AE35);
+  h ^= h >>> 16;
+  return h >>> 0;
+}
 
 // FNV-32 — простая и быстрая хеш-функция для строк.
 // Используется как базовый хеш перед применением хеш-функций MinHash.
@@ -1688,16 +1731,15 @@ function minhash(text){
   // Если шинглов меньше 5, текст слишком короткий для надёжной сигнатуры
   if(shingleSet.size < 5) return null;
 
-  // Инициализируем сигнатуру максимальными значениями
-  const signature = new Array(MINHASH_NUM).fill(MINHASH_PRIME);
+  // Инициализируем сигнатуру максимальными 32-битными значениями
+  const signature = new Uint32Array(MINHASH_NUM).fill(0xFFFFFFFF);
 
   // Проходим по каждому шинглу и обновляем сигнатуру
   for(const shingle of shingleSet){
     const baseHash = fnv32(shingle);
     for(let i = 0; i < MINHASH_NUM; i++){
-      const [a, b] = MINHASH_SEEDS[i];
-      // Универсальное хеширование: h(x) = (a*x + b) mod prime
-      const hashed = ((a * baseHash + b) % MINHASH_PRIME) >>> 0;
+      // i-я хеш-функция: перемешиваем базовый хеш вместе со своей затравкой
+      const hashed = mix32(baseHash ^ MINHASH_SEEDS[i]);
       if(hashed < signature[i]){
         signature[i] = hashed;
       }
@@ -1752,10 +1794,12 @@ function inverseDocumentFrequency(documents){
       documentFrequency.set(word, (documentFrequency.get(word) || 0) + 1);
     }
   }
-  // IDF = log(N / df). Логарифм сглаживает экстремальные значения.
+  // Сглаженный IDF = ln((1 + N) / (1 + df)) + 1. Обычная формула ln(N / df)
+  // при сравнении двух текстов (N = 2) даёт общим словам вес ln(2/2) = 0,
+  // и сходство любых двух текстов выходило нулевым — даже одинаковых.
   const idf = new Map();
   for(const [word, df] of documentFrequency){
-    idf.set(word, Math.log(N / df));
+    idf.set(word, Math.log((1 + N) / (1 + df)) + 1);
   }
   return idf;
 }
@@ -2087,9 +2131,12 @@ function localAnalyze(text){
   const emDashDensity = emDashes / (sentenceCount / 10);
 
   // 6. КАНЦЕЛЯРИТ — частота характерных бюрократических слов
-  const yavlyaetsya = (text.match(/\bявля[а-я]*\b/gi) || []).length;
-  const dannyy = (text.match(/\bданн[а-я]*\b/gi) || []).length;
-  const kotoryy = (text.match(/\bкотор[а-я]*\b/gi) || []).length;
+  // Считаем по токенам, а не регуляркой с \b: в JavaScript \b знает только
+  // латиницу, и /\bявля/ на русском тексте не находил ни одного слова.
+  const countPrefix = prefix => tokens.filter(t => t.startsWith(prefix)).length;
+  const yavlyaetsya = countPrefix('явля');
+  const dannyy = countPrefix('данн');
+  const kotoryy = countPrefix('котор');
   // «который» — слово более частое в нормальном русском, поэтому весит вдвое меньше
   const kanselyaritDensity = (yavlyaetsya + dannyy + kotoryy * 0.5) / wordCount;
 
@@ -2194,27 +2241,32 @@ function localAnalyze(text){
     chunkShingles.forEach(v => { if(v > 1) chunkRepeats += v - 1; });
     const chunkRepRate = chunkRepeats / (chunkShingles.size || 1);
 
+    // Уверенность считается из силы признака, без случайных добавок:
+    // один и тот же текст обязан давать один и тот же отчёт.
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
     let type = 'original';
-    let confidence = 65 + Math.floor(Math.random() * 20);
+    // Чем разнообразнее словарь фрагмента, тем увереннее, что он оригинален
+    let confidence = clamp(65 + (chunkTtr - 0.5) * 80, 65, 85);
     let explanation = 'Фрагмент выглядит оригинальным';
     let source = null;
 
     if(chunkHasQuote){
       type = 'citation';
-      confidence = 80 + Math.floor(Math.random() * 15);
+      confidence = 85;
       explanation = 'Содержит корректное оформление цитаты';
     } else if(chunkMarkers.count >= 2 && chunkTtr < 0.45){
       type = 'ai_generated';
-      confidence = 60 + Math.floor(Math.random() * 25);
+      // Больше клише и беднее словарь — выше уверенность
+      confidence = clamp(60 + (chunkMarkers.count - 2) * 5 + (0.45 - chunkTtr) * 100, 60, 85);
       explanation = 'Высокая плотность ИИ-маркеров, низкое лексическое разнообразие';
     } else if(chunkMarkers.count >= 3){
       type = 'ai_generated';
-      confidence = 55 + Math.floor(Math.random() * 20);
+      confidence = clamp(55 + (chunkMarkers.count - 3) * 5, 55, 75);
       explanation = 'Обнаружены характерные ИИ-клише: ' +
         chunkMarkers.hits.slice(0, 3).map(h => h.text).join(', ');
     } else if(chunkRepRate > 0.15){
       type = 'borrowed';
-      confidence = 55 + Math.floor(Math.random() * 20);
+      confidence = clamp(55 + (chunkRepRate - 0.15) * 100, 55, 75);
       explanation = 'Повторяющиеся речевые шаблоны (высокая шаблонность)';
       source = 'Шаблонные конструкции';
     }
@@ -2405,14 +2457,15 @@ ${cleanedText}`;
     response_format: { type: 'json_object' }
   };
 
-  const response = await fetch(provider.url, {
+  // Полный ответ модели — до 4096 токенов, поэтому лимит щедрый: 60 секунд
+  const response = await fetchWithTimeout(provider.url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer ' + S.apiKey
     },
     body: JSON.stringify(body)
-  });
+  }, 60000);
 
   if(!response.ok){
     const errorText = await response.text();
@@ -2428,7 +2481,77 @@ ${cleanedText}`;
   // Извлекаем JSON, даже если он окружён посторонним текстом
   const match = cleaned.match(/\{[\s\S]*\}/);
   if(!match) throw new Error('Не удалось распарсить ответ LLM');
-  return JSON.parse(match[0]);
+  return normalizeApiResult(JSON.parse(match[0]));
+}
+
+// Проверка и нормализация ответа LLM. Модель может вернуть числа строками
+// ("85"), лишние поля, неизвестные типы или даже HTML — особенно если в
+// проверяемый документ вписана инструкция для модели. Поэтому в UI и отчёт
+// попадает только то, что прошло через эту функцию: числа в своих диапазонах,
+// значения из белых списков и строки (которые при выводе всё равно экранируются).
+function normalizeApiResult(raw){
+  const obj = raw && typeof raw === 'object' ? raw : {};
+  const num = (v, lo = 0, hi = 100) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : 0;
+  };
+  const str = (v, max = 2000) => (typeof v === 'string' || typeof v === 'number') ? String(v).slice(0, max) : '';
+  const oneOf = (v, allowed, fallback) => allowed.includes(v) ? v : fallback;
+  const list = v => Array.isArray(v) ? v : [];
+  // В ссылки пропускаем только http(s) — никаких javascript: и data:
+  const safeUrl = v => /^https?:\/\//i.test(str(v)) ? str(v, 500) : '';
+  const LEVELS = ['low', 'medium', 'high'];
+
+  const ai = num(obj.ai_generated_percent);
+  const analysis = obj.ai_analysis && typeof obj.ai_analysis === 'object' ? obj.ai_analysis : {};
+
+  const out = {
+    originality_percent: num(obj.originality_percent),
+    borrowed_percent: num(obj.borrowed_percent),
+    citation_percent: num(obj.citation_percent),
+    ai_generated_percent: ai,
+    ai_verdict: oneOf(obj.ai_verdict, ['human', 'mixed', 'ai'],
+      ai < 30 ? 'human' : ai < 55 ? 'mixed' : 'ai'),
+    ai_confidence: num(obj.ai_confidence),
+    fragments: list(obj.fragments).slice(0, 30)
+      .filter(f => f && typeof f === 'object' && str(f.text))
+      .map(f => ({
+        text: str(f.text, 1000),
+        type: oneOf(f.type, ['original', 'borrowed', 'ai_generated', 'citation', 'self_citation'], 'original'),
+        source: str(f.source, 300) || null,
+        confidence: Math.round(num(f.confidence)),
+        explanation: str(f.explanation, 500),
+        page: f.page == null ? null : Math.round(num(f.page, 1, 100000)) || null
+      })),
+    sources: list(obj.sources).slice(0, 30)
+      .filter(s => s && typeof s === 'object' && str(s.title))
+      .map(s => ({
+        title: str(s.title, 300),
+        url: safeUrl(s.url),
+        match_percent: Math.round(num(s.match_percent)),
+        type: oneOf(s.type, ['web', 'academic', 'ai_generated'], 'web')
+      })),
+    ai_analysis: {
+      perplexity_score: oneOf(analysis.perplexity_score, LEVELS, null),
+      burstiness_score: oneOf(analysis.burstiness_score, LEVELS, null),
+      uniformity_score: oneOf(analysis.uniformity_score, LEVELS, null),
+      vocabulary_diversity: oneOf(analysis.vocabulary_diversity, LEVELS, null),
+      sentence_length_variance: oneOf(analysis.sentence_length_variance, LEVELS, null),
+      details: str(analysis.details, 3000)
+    },
+    recommendations: list(obj.recommendations).map(r => str(r, 1000)).filter(Boolean).slice(0, 10)
+  };
+
+  // Возвращаем только поля, которые модель действительно прислала: результат
+  // накладывается поверх локального анализа через Object.assign, и пропущенное
+  // моделью поле не должно затирать локальное значение нулём.
+  for(const key of Object.keys(out)){
+    const present = key === 'ai_verdict'
+      ? ('ai_verdict' in obj || 'ai_generated_percent' in obj)
+      : key in obj;
+    if(!present) delete out[key];
+  }
+  return out;
 }
 
 // =============================================================================
@@ -2450,7 +2573,7 @@ async function searchOpenAlex(query){
   try{
     const url = `https://api.openalex.org/works?search=${encodeURIComponent(query)}` +
                 `&per-page=5&select=id,title,abstract_inverted_index,publication_year,authorships,doi`;
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       headers: { 'User-Agent': 'SOZYKIN-Plagiat/7.0 (mailto:user@example.com)' }
     });
     if(!response.ok) return [];
@@ -2475,7 +2598,7 @@ async function searchCrossref(query){
   try{
     const url = `https://api.crossref.org/works?query=${encodeURIComponent(query)}` +
                 `&rows=3&select=DOI,title,author,published-print`;
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
     if(!response.ok) return [];
     const data = await response.json();
     return (data.message?.items || []).map(work => ({
@@ -2499,7 +2622,7 @@ async function searchSemanticScholar(query){
   try{
     const url = `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(query)}` +
                 `&limit=3&fields=title,authors,year,externalIds,url`;
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
     if(!response.ok) return [];
     const data = await response.json();
     return (data.data || []).map(work => ({
@@ -2521,7 +2644,7 @@ async function searchArxiv(query){
   try{
     const url = `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}` +
                 `&start=0&max_results=3`;
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
     if(!response.ok) return [];
     const xmlText = await response.text();
     const xmlDoc = new DOMParser().parseFromString(xmlText, 'text/xml');
@@ -2551,7 +2674,7 @@ async function searchWikipedia(query){
   try{
     const url = `https://ru.wikipedia.org/w/api.php?origin=*&action=query&format=json` +
                 `&list=search&srsearch=${encodeURIComponent(query)}&srlimit=3`;
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
     if(!response.ok) return [];
     const data = await response.json();
     return (data.query?.search || []).map(article => ({
@@ -2573,7 +2696,7 @@ async function searchDOAJ(query){
   try{
     const url = `https://doaj.org/api/v3/search/articles/${encodeURIComponent(query)}` +
                 `?pageSize=3`;
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
     if(!response.ok) return [];
     const data = await response.json();
     return (data.results || []).map(article => {
@@ -2774,7 +2897,7 @@ async function fastDetectGPTLite(text, apiCall, progressCb){
 async function quickApiCall(prompt){
   const provider = PROVIDERS[S.apiProvider];
   if(!provider) throw new Error('No provider');
-  const response = await fetch(provider.url, {
+  const response = await fetchWithTimeout(provider.url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -2786,7 +2909,7 @@ async function quickApiCall(prompt){
       temperature: 0.1,
       max_tokens: 100
     })
-  });
+  }, 20000);
   if(!response.ok) throw new Error('API error');
   const data = await response.json();
   return data.choices?.[0]?.message?.content || '';
@@ -2978,7 +3101,7 @@ function mkFrag(fragment){
   return `<div class="frag" style="border-color:${config.c};background:${config.bg}">
     <div class="frag-h">
       <span class="frag-tag" style="color:${config.c}">${config.l}</span>
-      <span class="frag-c m">${fragment.confidence || 0}% · стр. ${fragment.page || '—'}</span>
+      <span class="frag-c m">${escapeHtml(fragment.confidence || 0)}% · стр. ${escapeHtml(fragment.page || '—')}</span>
     </div>
     <div class="frag-t">«${escapeHtml(fragment.text || '')}»</div>
     ${fragment.source ? `<div class="frag-m">📎 ${escapeHtml(fragment.source)}</div>` : ''}
@@ -3419,11 +3542,11 @@ ${r.suspicious && r.suspicious.suspiciousScore > 0.05 ? `
     ${mkII('Файл', escapeHtml(S.fn || '—'))}
     ${mkII('Слов', (r.total_words || 0).toLocaleString('ru'))}
     ${mkII('Символов', (r.total_chars || 0).toLocaleString('ru'))}
-    ${mkII('Предложений', r.total_sentences || '—')}
-    ${mkII('Страниц', r.total_pages || '—')}
+    ${mkII('Предложений', escapeHtml(r.total_sentences || '—'))}
+    ${mkII('Страниц', escapeHtml(r.total_pages || '—'))}
     ${mkII('Режим', r._hybrid ? 'API + Локально' : 'Локальный')}
     ${mkII('Вердикт', r.ai_verdict === 'human' ? 'Человек' : r.ai_verdict === 'mixed' ? 'Смешанный' : 'ИИ')}
-    ${mkII('Уверенность', (r.ai_confidence || 0) + '%')}
+    ${mkII('Уверенность', escapeHtml(r.ai_confidence || 0) + '%')}
   </div>
 </div>
 
@@ -3487,7 +3610,7 @@ ${(r.recommendations || []).length ? `
         ${s.url ? `<div class="src-u">${escapeHtml(s.url)}</div>` : ''}
         ${s.sourceName ? `<div style="font-size:9px;color:var(--mut);margin-top:2px;text-transform:uppercase;letter-spacing:.05em;font-weight:600">${escapeHtml(s.sourceName)}</div>` : ''}
       </div>
-      <div class="src-p m" style="color:${s.match_percent > 10 ? 'var(--ap-borrow)' : 'var(--dim)'}">${s.match_percent || 0}%</div>
+      <div class="src-p m" style="color:${s.match_percent > 10 ? 'var(--ap-borrow)' : 'var(--dim)'}">${escapeHtml(s.match_percent || 0)}%</div>
     </div>`;
   }).join('')}
 </div>`;
@@ -3503,7 +3626,7 @@ ${(r.recommendations || []).length ? `
 <div class="stats">
   ${mkStat('ИИ-вероятность', (r.ai_generated_percent || 0).toFixed(1) + '%', 'var(--ap-ai)', 'sparkle')}
   ${mkStat('Человек', (100 - (r.ai_generated_percent || 0)).toFixed(1) + '%', 'var(--ap-orig)', 'user')}
-  ${mkStat('Уверенность', (r.ai_confidence || 0) + '%', 'var(--acc)', 'target')}
+  ${mkStat('Уверенность', escapeHtml(r.ai_confidence || 0) + '%', 'var(--acc)', 'target')}
   ${r._fastDetectGPT ? mkStat('Fast-DetectGPT', r._fastDetectGPT.aiProbability + '%', 'var(--acc2)', 'bolt') : ''}
 </div>
 
@@ -3667,8 +3790,9 @@ function reportHTML(r, fn, aiOnly){
   };
 
   // Хелперы для отображения уровней метрик
-  const scoreLabel = v => v === 'low' ? 'Низкий' : v === 'medium' ? 'Средний' : 'Высокий';
-  const scoreColor = v => v === 'low' ? '#30D158' : v === 'medium' ? '#FFD60A' : '#FF453A';
+  // Неизвестное значение показываем как «—», а не как «Высокий»
+  const scoreLabel = v => ({ low: 'Низкий', medium: 'Средний', high: 'Высокий' })[v] || '—';
+  const scoreColor = v => ({ low: '#30D158', medium: '#FFD60A', high: '#FF453A' })[v] || '#94a3b8';
 
   const verdictColor = r.ai_verdict === 'human' ? '#30D158' :
                        r.ai_verdict === 'mixed' ? '#FFD60A' : '#FF453A';
@@ -3679,7 +3803,8 @@ function reportHTML(r, fn, aiOnly){
 
   return `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${aiOnly ? 'Отчёт ИИ' : 'Полный отчёт'} — SOZYKIN Плагиат — ${fn}</title>
+<meta http-equiv="Content-Security-Policy" content="script-src 'none'; object-src 'none'; base-uri 'none'">
+<title>${aiOnly ? 'Отчёт ИИ' : 'Полный отчёт'} — SOZYKIN Плагиат — ${escapeHtml(fn)}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI','Helvetica Neue',system-ui,sans-serif;background:#f5f7fa;color:#1e293b;line-height:1.6;padding:20px}
@@ -3781,7 +3906,7 @@ ${r.suspicious && r.suspicious.suspiciousScore > 0.05 ? `
   <h2>⚠ Признаки манипуляций с текстом</h2>
   <div class="susp">
     <div class="t">Документ содержит признаки попыток обхода антиплагиат-систем</div>
-    <ul>${r.suspicious.issues.map(i => `<li>${i}</li>`).join('')}</ul>
+    <ul>${r.suspicious.issues.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul>
     <div style="margin-top:10px;font-size:12px;color:#64748b">Антиплагиат.ВУЗ помечает такие документы как «подозрительные» и снижает доверие к проверке. Удалите эти символы перед сдачей работы.</div>
   </div>
 </div>` : ''}
@@ -3799,7 +3924,7 @@ ${r.suspicious && r.suspicious.suspiciousScore > 0.05 ? `
       ['Страниц', r.total_pages || '—'],
       ['Режим анализа', r._hybrid ? 'API + локальный' : 'Локальный'],
       ['Уверенность', (r.ai_confidence || 0) + '%']
-    ].map(([k, v]) => `<div class="ii"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}
+    ].map(([k, v]) => `<div class="ii"><div class="k">${k}</div><div class="v">${escapeHtml(v)}</div></div>`).join('')}
   </div>
 </div>
 
@@ -3814,7 +3939,7 @@ ${r.suspicious && r.suspicious.suspiciousScore > 0.05 ? `
         : '<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 8l8 8M16 8l-8 8"/></svg>'
     }</div>
     <div class="t" style="color:${verdictColor}">${verdictText}</div>
-    <div class="d">ИИ-контент: ${(r.ai_generated_percent || 0).toFixed(1)}% · Человек: ${(100 - (r.ai_generated_percent || 0)).toFixed(1)}% · Уверенность: ${r.ai_confidence || 0}%</div>
+    <div class="d">ИИ-контент: ${(r.ai_generated_percent || 0).toFixed(1)}% · Человек: ${(100 - (r.ai_generated_percent || 0)).toFixed(1)}% · Уверенность: ${escapeHtml(r.ai_confidence || 0)}%</div>
   </div>
   ${r.ai_analysis ? `<div class="am">${[
     ['Перплексия', r.ai_analysis.perplexity_score],
@@ -3825,7 +3950,7 @@ ${r.suspicious && r.suspicious.suspiciousScore > 0.05 ? `
   ].map(([n, v]) =>
     `<div class="ami"><div class="n">${n}</div><div class="s" style="color:${scoreColor(v)};background:${scoreColor(v)}20">${scoreLabel(v)}</div></div>`
   ).join('')}</div>
-  ${r.ai_analysis.details ? `<div style="background:#f8fafc;border-radius:10px;padding:14px 18px;border-left:3px solid #BF5AF2;font-size:13px;color:#475569;line-height:1.7">${r.ai_analysis.details}</div>` : ''}` : ''}
+  ${r.ai_analysis.details ? `<div style="background:#f8fafc;border-radius:10px;padding:14px 18px;border-left:3px solid #BF5AF2;font-size:13px;color:#475569;line-height:1.7">${escapeHtml(r.ai_analysis.details)}</div>` : ''}` : ''}
 </div>
 
 <div class="s">
@@ -3835,11 +3960,11 @@ ${r.suspicious && r.suspicious.suspiciousScore > 0.05 ? `
     return `<div class="fr" style="border-color:${color};background:${color}0d">
       <div class="h2">
         <span class="t" style="color:${color};background:${color}1f">${fragmentLabels[f.type] || 'Оригинал'}</span>
-        <span class="c">${f.confidence || 0}% · стр. ${f.page || '—'}</span>
+        <span class="c">${escapeHtml(f.confidence || 0)}% · стр. ${escapeHtml(f.page || '—')}</span>
       </div>
-      <div class="b">«${(f.text || '').replace(/</g, '&lt;')}»</div>
-      ${f.source ? `<div class="m">Источник: ${f.source}</div>` : ''}
-      ${f.explanation ? `<div class="m">${f.explanation}</div>` : ''}
+      <div class="b">«${escapeHtml(f.text)}»</div>
+      ${f.source ? `<div class="m">Источник: ${escapeHtml(f.source)}</div>` : ''}
+      ${f.explanation ? `<div class="m">${escapeHtml(f.explanation)}</div>` : ''}
     </div>`;
   }).join('')}
 </div>
@@ -3854,18 +3979,18 @@ ${r.suspicious && r.suspicious.suspiciousScore > 0.05 ? `
     return `<div class="sr">
       <div class="i" style="background:${bg}">${ic}</div>
       <div class="n">
-        <div class="ti">${s.title}</div>
-        ${s.url ? `<div class="u">${s.url}</div>` : ''}
-        ${s.sourceName ? `<div class="src-name">${s.sourceName}</div>` : ''}
+        <div class="ti">${escapeHtml(s.title)}</div>
+        ${s.url ? `<div class="u">${escapeHtml(s.url)}</div>` : ''}
+        ${s.sourceName ? `<div class="src-name">${escapeHtml(s.sourceName)}</div>` : ''}
       </div>
-      <div class="p" style="color:${s.match_percent > 10 ? '#FF453A' : '#94a3b8'}">${s.match_percent}%</div>
+      <div class="p" style="color:${s.match_percent > 10 ? '#FF453A' : '#94a3b8'}">${escapeHtml(s.match_percent || 0)}%</div>
     </div>`;
   }).join('')}
 </div>
 
 ${(r.recommendations || []).length ? `<div class="s">
   <h2>Рекомендации</h2>
-  ${r.recommendations.map(rec => `<div class="rec">💡 ${rec}</div>`).join('')}
+  ${r.recommendations.map(rec => `<div class="rec">💡 ${escapeHtml(rec)}</div>`).join('')}
 </div>` : ''}
 
 <div class="ft">
