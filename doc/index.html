@@ -6,9 +6,9 @@
 <title>Документы</title>
 <meta name="description" content="Служебные документы по образцу: уведомления, рапорты, акты, ориентировки. Данные остаются на устройстве.">
 <meta name="robots" content="noindex">
-<!-- Скрипты — только свои файлы (никакого встроенного кода); сеть — только ИИ и справочник
-     индексов. wasm-unsafe-eval и worker blob: нужны распознаванию фото (Tesseract, WebAssembly). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' blob: data: https://gen.pollinations.ai https://suggestions.dadata.ru; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<!-- Скрипты — только свои файлы (никакого встроенного кода); сеть — только нейросети
+     (Pollinations, OpenRouter, Gemini — по ключу пользователя) и справочник индексов. wasm-unsafe-eval и worker blob: нужны распознаванию фото (Tesseract, WebAssembly). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' blob: data: https://gen.pollinations.ai https://openrouter.ai https://generativelanguage.googleapis.com https://suggestions.dadata.ru; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#0c2b66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -103,6 +103,27 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),li
 .photo img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px;border:1px solid var(--brd)}
 .photo input{margin-top:6px;font-size:14px;padding:8px 10px}
 
+/* Вложения к задаче */
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips:not(:empty){margin-top:10px}
+.chip{display:inline-flex;align-items:center;gap:4px;max-width:100%;background:var(--goldS);color:var(--navy);border:1px solid var(--goldB);
+  border-radius:999px;padding:4px 4px 4px 12px;font-size:13px}
+.chip{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip button{border:0;background:transparent;color:var(--navy);font-size:17px;line-height:1;padding:2px 8px}
+.dl{position:sticky;top:calc(64px + env(safe-area-inset-top));z-index:5;background:var(--bg);padding:8px 0;margin-bottom:6px}
+.dl>.btn{flex:1 1 0;padding-left:8px;padding-right:8px}
+details>summary{list-style:none}
+details>summary::-webkit-details-marker{display:none}
+details.card>summary::after{content:' ▾'}
+details.card[open]>summary::after{content:' ▴'}
+
+/* Ожидание: что сейчас делается */
+.busy{position:fixed;inset:0;z-index:40;background:rgba(243,245,249,.86);display:flex;align-items:center;justify-content:center;padding:16px}
+.busy-b{background:#fff;border:1px solid var(--brd2);border-radius:14px;padding:22px 24px;max-width:320px;text-align:center;box-shadow:0 6px 24px rgba(12,43,102,.15)}
+.busy-t{margin-top:12px;color:var(--navy);font-weight:500}
+.spin{width:34px;height:34px;margin:0 auto;border-radius:50%;border:3px solid var(--goldS);border-top-color:var(--navy);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
 /* Окна: просмотр документа и подтверждение отправки в ИИ */
 .modal{position:fixed;inset:0;z-index:50;background:rgba(8,20,45,.92);display:flex;flex-direction:column;
   padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))}
@@ -152,7 +173,7 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),li
 <header class="hdr">
   <a class="brand" href="#list"><div class="lg">Д</div><div><div class="bn">Документы</div><div class="bs">по образцу</div></div></a>
   <nav class="nav">
-    <a href="#list" data-r="list">Материалы</a>
+    <a href="#list" data-r="list">Главная</a>
     <a href="#laws" data-r="laws">Нормы</a>
     <a href="#settings" data-r="settings">Настройки</a>
   </nav>
@@ -163,6 +184,7 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),li
 <div id="printArea"></div>
 <input type="file" id="importFile" accept=".doc,.docx,.rtf,.pdf,.txt,image/*" multiple style="display:none">
 <input type="file" id="photoFile" accept="image/*" multiple style="display:none">
+<input type="file" id="taskFile" multiple style="display:none">
 
 <script src="app.js"></script>
 </body>
