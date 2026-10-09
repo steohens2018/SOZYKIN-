@@ -1304,6 +1304,60 @@ function docText(buffer){
     .split('\n').map(x => x.replace(/\t+/g, ' ').trimEnd()).filter(x => x.trim()).join('\n');
 }
 
+// RTF — так сохраняет документы служебный КонсультантПлюс и «Гарант».
+// Достаём текст: служебные группы пропускаем, \'hh — windows-1251, \uN — Юникод.
+function rtfText(buffer){
+  const src = new TextDecoder('latin1').decode(buffer);
+  if(!src.startsWith('{\\rtf')) throw new Error('это не RTF');
+  const cp = new TextDecoder('windows-1251');
+  const SKIP = /^(fonttbl|colortbl|stylesheet|info|pict|object|header|footer|headerl|headerr|footerl|footerr|listtable|listoverridetable|rsidtbl|generator|xmlnstbl|themedata|colorschememapping|latentstyles|datastore|fldinst)$/;
+  let out = '', i = 0, ucSkip = 1, pendingBytes = [];
+  const stack = [];
+  let skip = false;
+  const flush = () => { if(pendingBytes.length){ out += cp.decode(new Uint8Array(pendingBytes)); pendingBytes = []; } };
+  while(i < src.length){
+    const ch = src[i];
+    if(ch === '{'){ flush(); stack.push(skip); i++; if(src.startsWith('\\*', i)) skip = true; continue; }
+    if(ch === '}'){ flush(); skip = stack.pop() || false; i++; continue; }
+    if(ch === '\\'){
+      const m = /^\\([a-z]+)(-?\d+)? ?|^\\'([0-9a-f]{2})|^\\([^a-z])/i.exec(src.slice(i, i + 40));
+      if(!m){ i++; continue; }
+      i += m[0].length;
+      if(m[3]){ if(!skip) pendingBytes.push(parseInt(m[3], 16)); continue; }
+      flush();
+      if(m[4]){ if(!skip && '\\{}'.includes(m[4])) out += m[4]; else if(!skip && m[4] === '~') out += ' '; continue; }
+      const w = m[1], n = m[2];
+      if(SKIP.test(w)){ skip = true; continue; }
+      if(skip) continue;
+      if(w === 'uc') ucSkip = +n || 1;
+      else if(w === 'u'){ let code = +n; if(code < 0) code += 65536; out += String.fromCharCode(code);
+        for(let k = 0; k < ucSkip && i < src.length; k++){ if(src[i] === '\\' && src[i + 1] === "'") i += 4; else i++; } }
+      else if(w === 'par' || w === 'line' || w === 'sect' || w === 'page' || w === 'row') out += '\n';
+      else if(w === 'tab' || w === 'cell') out += ' ';
+      continue;
+    }
+    if(ch === '\r' || ch === '\n'){ i++; continue; }
+    flush();
+    if(!skip) out += ch;
+    i++;
+  }
+  flush();
+  return out.split('\n').map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+}
+
+// Текст из файла любого поддерживаемого формата. «.doc» из КонсультантПлюс
+// бывает на самом деле RTF — определяем по содержимому, а не по расширению.
+async function anyText(buf, name){
+  const head = new Uint8Array(buf.slice(0, 5));
+  if(String.fromCharCode(...head) === '{\\rtf') return rtfText(buf);
+  if(name.endsWith('.docx')) return docxText(buf);
+  if(name.endsWith('.doc')) return docText(buf);
+  if(name.endsWith('.pdf')) return pdfText(buf);
+  if(name.endsWith('.rtf')) return rtfText(buf);
+  const t = new TextDecoder('utf-8').decode(buf);
+  return t.includes('\uFFFD') ? new TextDecoder('windows-1251').decode(buf) : t;   // txt в старой кодировке
+}
+
 async function docxText(buffer){
   const files = await unzipEntries(buffer, n => n === 'word/document.xml');
   if(!files['word/document.xml']) throw new Error('в архиве нет текста документа');
@@ -2231,8 +2285,8 @@ function renderCase(id){
     c.free.to = [S.settings.chief1, S.settings.chief2, S.settings.chiefRank, S.settings.chiefName].filter(Boolean).join('\n');
     const el = $('[data-d="free.to"]'); if(el) el.value = c.free.to;
   }
-  $('#importHere').onclick = () => pickImport(c, '.doc,.docx,.pdf,.txt');
-  $('#retypeHere').onclick = () => pickImport(c, '.doc,.docx,.pdf,.txt,image/*', 'retype');
+  $('#importHere').onclick = () => pickImport(c, '.doc,.docx,.rtf,.pdf,.txt');
+  $('#retypeHere').onclick = () => pickImport(c, '.doc,.docx,.rtf,.pdf,.txt,image/*', 'retype');
   $('#blankFill').onclick = () => pickImport(c, '.docx', 'blank');
   $('#photoHere').onclick = () => pickImport(c, 'image/*');
   $('#preview').onclick = () => showPreview(kind, c);
@@ -2535,8 +2589,11 @@ async function renderLaws(){
     <label class="f"><span>Кодекс / закон</span><select id="lawCode">${Object.entries(CODES).map(([k, v]) => `<option value="${escapeHtml(k)}">${escapeHtml(v.short)}${k === 'ГК1' ? ' ч. 1' : k === 'ГК2' ? ' ч. 2' : ''}</option>`).join('')}<option value="__other">Другой…</option></select></label>
     <label class="f"><span>Название, если «Другой»</span><input id="lawOther" placeholder="ЖК РФ" autocomplete="off"></label>
   </div>
-  <button class="btn gold wide" id="lawImport" style="margin-top:10px">Загрузить кодекс из файла (DOCX, DOC, PDF, TXT)</button>
-  <div class="hint">В КонсультантПлюс откройте кодекс и сохраните его в Word или PDF (или скопируйте текст в файл). Приложение само разрежет его на статьи по заголовкам «Статья N.»</div>
+  <button class="btn gold wide" id="lawImport" style="margin-top:10px">Загрузить кодекс из файла (DOCX, DOC, RTF, PDF, TXT)</button>
+  <div class="hint">Где взять файл: в КонсультантПлюс или «Гаранте» на служебном компьютере откройте кодекс и сохраните его в файл (Word или RTF);
+    на consultant.ru — выделите весь текст кодекса, скопируйте в Word и сохраните. Перешлите файл себе (почта, Telegram) и загрузите здесь.
+    Приложение само разрежет кодекс на статьи по заголовкам «Статья N.»</div>
+  <div class="row" style="margin-top:10px">${Object.entries(CODES).map(([k, v]) => `<a class="btn sm" href="https://www.consultant.ru/document/${escapeHtml(v.cons)}/" target="_blank" rel="noopener noreferrer">${escapeHtml(v.short.replace(/^Федерального закона /, ''))}${k === 'ГК1' ? ' ч.1' : k === 'ГК2' ? ' ч.2' : ''}</a>`).join('')}</div>
 </div>
 <div class="card">
   <div class="card-t">Готовые формулировки</div>
@@ -2581,7 +2638,7 @@ async function renderLaws(){
     const code = $('#lawCode').value, other = $('#lawOther').value.trim();
     if(code === '__other' && !other){ toast('Впишите название, например «ЖК РФ»', 'error'); return; }
     const fi = $('#importFile');
-    fi.accept = '.doc,.docx,.pdf,.txt'; fi.dataset.mode = 'laws';
+    fi.accept = '.doc,.docx,.rtf,.pdf,.txt'; fi.dataset.mode = 'laws';
     fi.dataset.case = code === '__other' ? 'other:' + other : code;
     fi.value = ''; fi.click();
   };
@@ -2675,7 +2732,7 @@ ${SETTINGS_FIELDS.map(([title, list]) => `<div class="card"><div class="card-t">
 function pickImport(c, accept, mode){
   const fi = $('#importFile');
   fi.dataset.mode = mode || '';
-  fi.accept = accept || '.doc,.docx,.pdf,.txt,image/*';
+  fi.accept = accept || '.doc,.docx,.rtf,.pdf,.txt,image/*';
   fi.dataset.case = c ? c.id : '';
   fi.value = '';
   fi.click();
@@ -2700,7 +2757,7 @@ $('#importFile').addEventListener('change', async e => {
     const [code, short] = target.startsWith('other:') ? ['Другое:' + target.slice(6), target.slice(6)] : [target, ''];
     try{
       const buf = await files[0].arrayBuffer(), name = files[0].name.toLowerCase();
-      const text = name.endsWith('.docx') ? await docxText(buf) : name.endsWith('.doc') ? docText(buf) : name.endsWith('.pdf') ? await pdfText(buf) : new TextDecoder().decode(buf);
+      const text = await anyText(buf, name);
       const arts = splitArticles(text, code, short);
       if(!arts.length){ toast('В файле не нашлось заголовков «Статья N.»', 'error', 6000); return; }
       await lawTx('readwrite', st => arts.forEach(a => st.put(a)));
@@ -2731,7 +2788,7 @@ $('#importFile').addEventListener('change', async e => {
         finally{ note.remove(); }
       } else {
         const buf = await file.arrayBuffer();
-        texts.push(name.endsWith('.docx') ? await docxText(buf) : name.endsWith('.doc') ? docText(buf) : name.endsWith('.pdf') ? await pdfText(buf) : new TextDecoder().decode(buf));
+        texts.push(await anyText(buf, name));
       }
     }catch(err){
       toast(`${file.name}: ${err.message}`, 'error', 6000);
