@@ -140,8 +140,8 @@ function findCase(id){
 }
 function saveCases(){
   // С пин-кодом материалы хранятся только зашифрованными
-  if(pinEnabled()){ if(cryptoKey) saveEncrypted().catch(() => toast('Не удалось сохранить материалы', 'error')); return; }
-  saveJson(LS_CASES, S.cases);
+  // Без пароля не пишем ничего: открытого хранения больше нет
+  if(pinEnabled() && cryptoKey) saveEncrypted().catch(() => toast('Не удалось сохранить материалы', 'error'));
 }
 
 // =============================================================================
@@ -197,27 +197,46 @@ async function setPin(pin){
   const key = await deriveKey(pin, salt);
   const meta = { salt: toB64(salt), check: await seal(key, CHECK_TEXT) };
   const box = await seal(key, { cases: S.cases, zips: S.zips, ai: S.ai });
-  // Открытые копии удаляем, только если шифрованные точно записались
+  // Открытые копии удаляем, только если шифрованные точно записались; при смене
+  // пароля и сбое записи возвращаем прежний шифр — данные остаются под старым паролем
+  const prevEnc = localStorage.getItem(LS_ENC), prevPin = localStorage.getItem(LS_PIN);
   if(!saveJson(LS_ENC, box) || !saveJson(LS_PIN, meta)){
-    localStorage.removeItem(LS_ENC); localStorage.removeItem(LS_PIN);
-    throw new Error('память браузера заполнена — материалы оставлены как были');
+    try{
+      if(prevEnc === null) localStorage.removeItem(LS_ENC); else localStorage.setItem(LS_ENC, prevEnc);
+      if(prevPin === null) localStorage.removeItem(LS_PIN); else localStorage.setItem(LS_PIN, prevPin);
+    }catch(e){}
+    throw new Error('память браузера заполнена — оставлено как было');
   }
   cryptoKey = key;
   localStorage.removeItem(LS_CASES); localStorage.removeItem(LS_ZIPS);
 }
 // Пароля «нет» больше не бывает: без него ключ нейросети и материалы лежали бы открыто.
+async function checkPin(pin){
+  const meta = loadJson(LS_PIN, null);
+  if(!meta) return false;
+  try{ return (await unseal(await deriveKey(pin, fromB64(meta.salt)), meta.check)) === CHECK_TEXT; }catch(e){ return false; }
+}
+// Каждая блокировка увеличивает счётчик: долгие операции (распознавание, ИИ)
+// после неё не продолжаются и ничего не показывают поверх экрана пароля
+let lockGen = 0;
+const stillOpen = gen => gen === lockGen && !!cryptoKey;
 
 // ПРИГЛАШЕНИЕ КОЛЛЕГ. Ссылка вида …#invite=… несёт ключ нейросети и общие
 // реквизиты подразделения, зашифрованные паролем приглашения (PBKDF2 + AES-GCM).
 // Часть адреса после «#» на сервер не уходит; без пароля ссылка бесполезна.
 // Личные поля (должность, звание, фамилия исполнителя) не передаются.
 const PERSONAL_SETTINGS = ['pos1', 'rank', 'officer', 'officerGen', 'officerSex'];
+// Не передаются и не принимаются: личное, а также то, что решает сам получатель
+// (показывать ли отправляемое в ИИ, шрифт) и чужие ключи сервисов (DaData)
+const INVITE_SKIP = [...PERSONAL_SETTINGS, 'confirmAi', 'font', 'dadataKey'];
+const inviteSettings = src => Object.fromEntries(Object.keys(DEFAULT_SETTINGS)
+  .filter(k => !INVITE_SKIP.includes(k) && Object.hasOwn(src, k) && typeof src[k] === 'string').map(k => [k, src[k]]));
 const b64url = s => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const unb64url = s => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/'))));
 async function makeInvite(pass){
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await deriveKey(pass, salt);
-  const settings = Object.fromEntries(Object.entries(S.settings).filter(([k]) => !PERSONAL_SETTINGS.includes(k)));
+  const settings = inviteSettings(S.settings);
   const box = await seal(key, { v: 1, ai: { key: S.ai.key || '', model: S.ai.model || '' }, settings });
   return location.origin + location.pathname + '#invite=' + b64url(JSON.stringify({ s: toB64(salt), iv: box.iv, d: box.data }));
 }
@@ -228,21 +247,28 @@ async function openInvite(blob, pass){
   if(!data || data.v !== 1) throw new Error('bad');
   return data;
 }
-function applyInvite(data){
-  if(data.ai && typeof data.ai.key === 'string' && providerOf(data.ai.key)) S.ai = { key: data.ai.key, model: typeof data.ai.model === 'string' ? data.ai.model : '' };
-  const mine = Object.fromEntries(PERSONAL_SETTINGS.map(k => [k, S.settings[k]]));
-  for(const [k, v] of Object.entries(data.settings || {})) if(Object.hasOwn(DEFAULT_SETTINGS, k) && typeof v === 'string') S.settings[k] = v;
-  Object.assign(S.settings, mine);
+const maskKey = k => k ? k.slice(0, 6) + '…' + k.slice(-4) : '';
+// Что изменит приглашение — показываем до применения
+function inviteSummary(data){
+  const k = data.ai && typeof data.ai.key === 'string' && providerOf(data.ai.key) ? data.ai.key : '';
+  const next = inviteSettings(data.settings || {});
+  const changed = Object.keys(next).filter(x => next[x] !== S.settings[x]);
+  return { key: k, provider: k ? AI_PROVIDERS[providerOf(k)].name : '', replacesKey: !!(k && S.ai.key && S.ai.key !== k), changed };
+}
+function applyInvite(data, takeKey = true){
+  if(takeKey && data.ai && typeof data.ai.key === 'string' && providerOf(data.ai.key)) S.ai = { key: data.ai.key, model: typeof data.ai.model === 'string' ? data.ai.model : '' };
+  Object.assign(S.settings, inviteSettings(data.settings || {}));
   saveJson(LS_SETTINGS, S.settings);
   saveCases();
 }
 // Приглашение из адреса забираем при запуске и сразу убираем из адресной строки
-let pendingInvite = (() => {
+function takeInvite(){
   const m = /^#invite=([\w-]{40,})$/.exec(location.hash);
   if(!m) return null;
   history.replaceState(null, '', location.pathname + location.search + '#list');
   return m[1];
-})();
+}
+let pendingInvite = takeInvite();
 
 function wipeAll(){
   for(const k of [LS_ENC, LS_PIN, LS_CASES, LS_ZIPS, LS_CURRENT, LS_FAILS]) localStorage.removeItem(k);
@@ -253,6 +279,7 @@ function lock(){
   if(!pinEnabled()) return;
   clearTimeout(saveTimer);
   if(cryptoKey) saveEncrypted().catch(() => {});
+  lockGen++;
   cryptoKey = null; S.cases = []; S.zips = {}; S.photos = {}; S.ai = {}; S.attach = []; S.draft = '';
   $$('.modal,.busy').forEach(m => m.remove());
   renderLock();
@@ -1549,8 +1576,7 @@ const zipStreetKey = (city, addr) => zipKey(city, addr).split('|').slice(0, 2).j
 function rememberZip(city, addr, zip){
   if(!/^\d{6}$/.test(zip || '') || !splitAddr(addr).street) return;
   S.zips[zipStreetKey(city, addr)] = zip;
-  if(pinEnabled()){ if(cryptoKey) saveEncrypted().catch(() => {}); }
-  else saveJson(LS_ZIPS, S.zips);
+  if(pinEnabled() && cryptoKey) saveEncrypted().catch(() => {});
 }
 function knownZip(city, addr){ return S.zips[zipStreetKey(city, addr)] || ''; }
 async function dadataZip(city, addr){
@@ -1932,7 +1958,10 @@ function applyCard(c, out, ps, taskPs){
   const changed = [];
   const fromTask = raw => {
     const toks = String(raw).match(/[⟦[][А-ЯЁA-Z]+\d*[⟧\]]/gu) || [];
-    return toks.length ? toks.some(t => taskPs.includes('⟦' + t.slice(1, -1) + '⟧')) : taskPs.includes(String(raw).trim());
+    if(toks.length) return toks.some(t => taskPs.includes('⟦' + t.slice(1, -1) + '⟧'));
+    // Без метки — только целым словом и не короче 3 знаков: «1» из «ч. 1 ст. 158» не считается
+    const v = String(raw).trim();
+    return v.length >= 3 && new RegExp(`(?<![\\p{L}\\d])${escRe(v)}(?![\\p{L}\\d])`, 'u').test(taskPs);
   };
   const put = (k, v, raw, label) => {
     if(!v || v === c[k]) return;
@@ -1958,7 +1987,7 @@ function applyCard(c, out, ps, taskPs){
     put('addr', city ? v.slice(city[0].length) : v, raw, 'адрес');
   }
   [v, raw] = val('_phone'); put('phone', /\d{5}/.test(v.replace(/\D/g, '')) ? v : '', raw, 'телефон');
-  [v, raw] = val('_kusp'); put('kusp', v.replace(/\D/g, ''), raw, 'КУСП');
+  [v, raw] = val('_kusp'); { const d = v.replace(/\D/g, ''); put('kusp', d.length >= 2 ? d : '', raw, 'КУСП'); }
   [v, raw] = val('_kuspDate'); if(isoDate(v) && (c.kuspDate === today() || fromTask(raw))) c.kuspDate = isoDate(v);
   [v, raw] = val('_msgTime'); { const t = /^(\d{1,2})[:.](\d{2})$/.exec(v); put('msgTime', t ? `${t[1].padStart(2, '0')}:${t[2]}` : '', raw, 'время'); }
   [v, raw] = val('_zip'); put('zip', /^\d{6}$/.test(v) ? v : '', raw, 'индекс');
@@ -2034,6 +2063,7 @@ async function callAi(userText, schema, system = AI_SYSTEM){
 
 // Показать, что именно уйдёт в ИИ, и спросить подтверждение
 function confirmPayload(text){
+  if(!cryptoKey) return Promise.resolve(false);
   return new Promise(resolve => {
     const box = document.createElement('div');
     box.className = 'modal';
@@ -2055,8 +2085,10 @@ function confirmPayload(text){
 // Тексты от ИИ. Возвращает true, если тексты получены. Без ключа — уходим
 // на вход, а после возврата действие продолжится само (doc_pending).
 async function aiWrite(c, kind, then){
+  const gen = lockGen;
   if(!aiKey()){
     const r = await askKey();
+    if(!stillOpen(gen)) return false;
     if(r === 'login'){
       saveCases();
       try{ sessionStorage.setItem('doc_pending', JSON.stringify({ id: c.id, kind, then })); }catch(e){}
@@ -2068,11 +2100,13 @@ async function aiWrite(c, kind, then){
   const { userText, schema } = aiPayload(c, kind, ps);
   const taskPs = ps.apply(c.task || '');
   if(S.settings.confirmAi !== 'нет' && !(await confirmPayload(userText))) return false;
+  if(!stillOpen(gen)) return false;
   const btn = $('#aiGo'), make = $('#makeAll');
   for(const b of [btn, make]) if(b){ b.disabled = true; }
   if(btn) btn.textContent = 'ИИ пишет…';
   try{
     const out = await callAi(userText, schema);
+    if(!stillOpen(gen)) return false;            // пока ИИ думал, приложение заблокировали
     let n = 0;
     for(const k of Object.keys(AI_FIELDS[kind])){
       if(typeof out[k] === 'string'){ c[kind][k] = ps.restore(out[k]).trim(); n++; }
@@ -2120,6 +2154,8 @@ async function makeAll(c, kind){
 const app = $('#app');
 
 function route(){
+  // Ссылку-приглашение могли открыть во вкладке, где приложение уже работает
+  if(location.hash.startsWith('#invite=')){ const inv = takeInvite(); if(inv) pendingInvite = inv; }
   // Пароль обязателен: без него ключ нейросети и материалы лежали бы открыто
   if(!pinEnabled()){ renderSetup(); return; }
   if(!cryptoKey){ renderLock(); return; }
@@ -2164,29 +2200,33 @@ function renderSetup(){
   app.innerHTML = `
 <div style="max-width:420px;margin:6vh auto 0">
   <div class="eyebrow">${invited ? 'Приглашение от коллеги' : 'Первый вход'}</div>
-  <h1>${invited ? 'Введите пароль' : 'Придумайте пароль'}</h1>
+  <h1>${invited ? 'Вход по приглашению' : 'Придумайте пароль'}</h1>
   <p class="lead">${invited
-    ? 'Пароль вам сообщил коллега, который прислал ссылку. Он же будет паролем входа в приложение на этом телефоне.'
+    ? 'Введите пароль от ссылки, который сообщил коллега, и придумайте свой пароль для входа — его знаете только вы.'
     : 'Пароль защищает документы и ключ нейросети на этом телефоне. Его нужно вводить при каждом входе.'}</p>
   <div class="card">
-    <label class="f"><span>Пароль (от ${PIN_MIN} символов)</span><input type="password" id="pin1" autocomplete="new-password" maxlength="64"></label>
-    ${invited ? '' : `<div style="height:10px"></div><label class="f"><span>Ещё раз</span><input type="password" id="pin2" autocomplete="new-password" maxlength="64"></label>`}
+    ${invited ? `<label class="f"><span>Пароль от ссылки</span><input type="password" id="invPass" autocomplete="off" maxlength="64"></label><div style="height:10px"></div>` : ''}
+    <label class="f"><span>${invited ? 'Свой пароль' : 'Пароль'} (от ${PIN_MIN} символов)</span><input type="password" id="pin1" autocomplete="new-password" maxlength="64"></label>
+    <div style="height:10px"></div>
+    <label class="f"><span>Ещё раз</span><input type="password" id="pin2" autocomplete="new-password" maxlength="64"></label>
     <button class="btn gold wide" id="pinOn" style="margin-top:14px">${invited ? 'Войти' : 'Начать работу'}</button>
     <div class="hint" id="pinMsg"></div>
   </div>
-  ${invited ? '' : '<div class="hint">Надёжнее 8 символов и больше, с буквами. После 10 неверных попыток подряд документы стираются.</div>'}
+  <div class="hint">Надёжнее 8 символов и больше, с буквами. После 10 неверных попыток подряд документы стираются.</div>
 </div>`;
   const msg = $('#pinMsg');
   const go = async () => {
     const a = $('#pin1').value;
     if(a.length < PIN_MIN){ msg.textContent = `Пароль — не короче ${PIN_MIN} символов`; return; }
-    if(!invited && a !== $('#pin2').value){ msg.textContent = 'Пароли не совпадают'; return; }
+    if(a !== $('#pin2').value){ msg.textContent = 'Пароли не совпадают'; return; }
     msg.textContent = 'Подождите…';
     try{
       let data = null;
       if(invited){
-        try{ data = await openInvite(pendingInvite, a); }
-        catch(e){ msg.textContent = 'Пароль не подходит к этой ссылке'; return; }
+        const ip = $('#invPass').value;
+        if(ip === a){ msg.textContent = 'Свой пароль должен отличаться от пароля ссылки'; return; }
+        try{ data = await openInvite(pendingInvite, ip); }
+        catch(e){ msg.textContent = 'Пароль от ссылки не подходит'; return; }
       }
       await setPin(a);
       if(data){ applyInvite(data); pendingInvite = null; toast('Готово: нейросеть и реквизиты коллеги подключены', 'success', 5000); }
@@ -2195,7 +2235,7 @@ function renderSetup(){
     }catch(e){ msg.textContent = 'Не удалось: ' + e.message; }
   };
   $('#pinOn').onclick = go;
-  $$('#pin1,#pin2').forEach(el => el.onkeydown = e => { if(e.key === 'Enter') go(); });
+  $$('#invPass,#pin1,#pin2').forEach(el => el.onkeydown = e => { if(e.key === 'Enter') go(); });
 }
 // Приглашение открыли на телефоне, где приложение уже есть
 function renderInviteImport(){
@@ -2213,9 +2253,17 @@ function renderInviteImport(){
   $('#invNo').onclick = () => { pendingInvite = null; route(); };
   $('#invGo').onclick = async () => {
     $('#invMsg').textContent = 'Подождите…';
-    try{ applyInvite(await openInvite(pendingInvite, $('#invPass').value)); }
+    let data;
+    try{ data = await openInvite(pendingInvite, $('#invPass').value); }
     catch(e){ $('#invMsg').textContent = 'Пароль не подходит к этой ссылке'; return; }
-    pendingInvite = null; toast('Нейросеть и реквизиты подключены', 'success'); route();
+    // Перед применением — что именно поменяется; свой ключ заменяем только с согласия
+    const sum = inviteSummary(data);
+    const lines = [sum.key ? `Нейросеть: ${sum.provider} (${maskKey(sum.key)})` : 'Ключа нейросети в ссылке нет',
+      sum.changed.length ? `Реквизиты: изменится полей — ${sum.changed.length}` : 'Реквизиты не меняются'];
+    if(!confirm('Подключить приглашение?\n\n' + lines.join('\n'))) return;
+    const takeKey = !sum.replacesKey || confirm(`Заменить ваш ключ (${maskKey(S.ai.key)}) ключом из ссылки?`);
+    applyInvite(data, takeKey);
+    pendingInvite = null; toast('Приглашение подключено', 'success'); route();
   };
 }
 
@@ -2283,7 +2331,7 @@ ${cases.length ? `<div class="card">
     const c = newCase(); S.cases.push(c);
     const files = S.attach.splice(0);
     const ok = await doTask(c, text, files);
-    if(leaving) return;
+    if(leaving || !cryptoKey) return;
     if(ok){ S.draft = ''; location.hash = '#case/' + c.id; }
     else if(!c.source && !c.f && !c.kusp){ S.cases = S.cases.filter(x => x !== c); saveCases(); S.attach = files; renderList(); }
   };
@@ -2333,10 +2381,12 @@ async function doTask(c, task, files){
     : /бланк|заполни\s+(?:этот|мой|пуст|форм)/iu.test(task) && files.some(f => /\.docx$/i.test(f.name)) ? 'blank' : '';
   const kind = mode === 'retype' ? 'free' : pickKind(c, task, files);
   const b = busy('Читаю файлы…');
+  const gen = lockGen;
   try{
     const texts = [];
     let blankFile = null;
     for(const f of files){
+      if(!stillOpen(gen)) return false;
       if(f.size > 25 * 1024 * 1024){ toast(`${f.name}: больше 25 МБ`, 'error'); continue; }
       try{
         if(isImage(f) && (kind === 'photo' || kind === 'or') && mode !== 'retype') await addPhoto(c.id, f);
@@ -2345,6 +2395,7 @@ async function doTask(c, task, files){
         else texts.push(await anyText(await f.arrayBuffer(), f.name.toLowerCase()));
       }catch(err){ toast(`${f.name}: ${err.message}`, 'error', 6000); }
     }
+    if(!stillOpen(gen)) return false;
     const text = texts.filter(t => t && t.trim()).join('\n\n').trim();
     if(text){ c.source = (c.source ? c.source.trim() + '\n\n' : '') + text; extractFields(text, c); }
     extractFields(task, c);
@@ -2367,6 +2418,7 @@ async function doTask(c, task, files){
     touch(c); saveCases();
     b.set('Нейросеть пишет документ…');
     await aiWrite(c, kind, 'task');
+    if(!stillOpen(gen)) return false;
     await autoZip(c);
     saveCases();
     return true;
@@ -2376,9 +2428,11 @@ async function doTask(c, task, files){
   }finally{ b.done(); }
 }
 async function writeAndShow(c, kind){
+  const gen = lockGen;
   const b = busy('Нейросеть пишет документ…');
-  try{ await aiWrite(c, kind, 'task'); await autoZip(c); saveCases(); }
+  try{ await aiWrite(c, kind, 'task'); if(stillOpen(gen)){ await autoZip(c); saveCases(); } }
   finally{ b.done(); }
+  if(!stillOpen(gen)) return;
   if(location.hash === '#case/' + c.id) renderResult(c.id); else location.hash = '#case/' + c.id;
 }
 // Индекс по адресу — сам, если есть ключ DaData; иначе остаётся в «не хватает»
@@ -2395,6 +2449,7 @@ async function autoZip(c){
 
 // Нейросеть не подключена: вставить ключ прямо здесь или войти через Pollinations
 function askKey(){
+  if(!cryptoKey) return Promise.resolve(false);
   return new Promise(resolve => {
     const box = document.createElement('div');
     box.className = 'modal';
@@ -2476,7 +2531,7 @@ ${miss.length ? `<div class="note warn"><b>Не хватает:</b> ${miss.map(e
     if(!text && !S.attach.length){ toast('Напишите, что исправить', 'info'); fix.focus(); return; }
     const files = S.attach.splice(0);
     const ok = await doTask(c, text, files);
-    if(leaving) return;
+    if(leaving || !cryptoKey) return;
     if(ok) S.draft = '';
     else S.attach = files;
     done(); renderResult(c.id); window.scrollTo(0, 0);
@@ -3147,7 +3202,7 @@ function renderSettings(){
   <div class="card-t">Поделиться с коллегами</div>
   <p class="hint" style="margin:0 0 10px">Коллега откроет ссылку, введёт пароль — и у него будут ваша нейросеть и реквизиты подразделения.
     Его документы останутся только у него. Пароль сообщите отдельно, не в том же сообщении, что ссылку.</p>
-  <label class="f"><span>Пароль для ссылки (от 8 символов)</span><input type="password" id="invPass1" autocomplete="new-password" maxlength="64"></label>
+  <label class="f"><span>Пароль для ссылки (от 10 символов, буквы и цифры)</span><input type="password" id="invPass1" autocomplete="new-password" maxlength="64"></label>
   <button class="btn gold wide" id="invMake" style="margin-top:10px">Создать ссылку</button>
   <div id="invOut"></div>
 </div>
@@ -3168,6 +3223,7 @@ function renderSettings(){
   <div class="card-t">Пароль</div>
   <div class="note">Документы и ключ зашифрованы. Приложение закрывается само через 5 минут в фоне или 15 минут без действий.</div>
   <div class="grid">
+    <label class="f full"><span>Текущий пароль</span><input type="password" id="pin0" autocomplete="current-password" maxlength="64"></label>
     <label class="f"><span>Новый пароль</span><input type="password" id="pin1" autocomplete="new-password" maxlength="64"></label>
     <label class="f"><span>Ещё раз</span><input type="password" id="pin2" autocomplete="new-password" maxlength="64"></label>
   </div>
@@ -3201,11 +3257,13 @@ function renderSettings(){
   $('#aiModel').addEventListener('change', e => { S.ai.model = e.target.value.trim(); saveCases(); });
   $('#invMake').onclick = async () => {
     const pass = $('#invPass1').value;
-    if(pass.length < 8){ toast('Пароль для ссылки — не короче 8 символов', 'error'); return; }
+    // Ссылку можно перебирать вне телефона, поэтому пароль строже, чем для входа
+    if(pass.length < 10 || !/\p{L}/u.test(pass) || !/\d/.test(pass)){ toast('Пароль для ссылки — от 10 символов, с буквами и цифрами', 'error', 5000); return; }
     if(!S.ai.key) toast('Ключа нейросети нет — коллеги получат только реквизиты', 'info', 5000);
     const b = busy('Шифрую…');
     let link = '';
     try{ link = await makeInvite(pass); }finally{ b.done(); }
+    if(!$('#invOut')) return;
     $('#invOut').innerHTML = `<label class="f" style="margin-top:12px"><span>Ссылка для коллег</span><textarea id="invLink" readonly>${escapeHtml(link)}</textarea></label>
       <div class="row" style="margin-top:8px"><button class="btn gold" id="invShare">Отправить</button><button class="btn" id="invCopy">Скопировать</button></div>`;
     $('#invCopy').onclick = async () => {
@@ -3221,7 +3279,9 @@ function renderSettings(){
     const a = $('#pin1').value, b = $('#pin2').value;
     if(a.length < PIN_MIN){ toast(`Пароль — не короче ${PIN_MIN} символов`, 'error'); return; }
     if(a !== b){ toast('Пароли не совпадают', 'error'); return; }
-    try{ await setPin(a); resetIdle(); toast('Пароль изменён', 'success'); renderSettings(); }
+    if(!(await checkPin($('#pin0').value))){ toast('Текущий пароль неверный', 'error'); return; }
+    // Пока шифровалось, могли уйти на другой экран — тогда не перерисовываем
+    try{ await setPin(a); resetIdle(); toast('Пароль изменён', 'success'); if(location.hash === '#settings') renderSettings(); }
     catch(e){ toast('Не удалось: ' + e.message, 'error'); }
   };
   $('#pinLock').onclick = lock;
