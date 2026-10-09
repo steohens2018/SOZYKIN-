@@ -2,15 +2,16 @@
 //
 //   — страница приложения: сначала сеть (чтобы обновления доходили сразу),
 //     без сети — копия из кеша;
-//   — иконки, модуль распознавания (ocr/), pdf.js с cdnjs: сначала кеш;
+//   — скрипт приложения: сначала сеть, как и страница (обновления доходят сразу);
+//   — иконки, модуль распознавания (ocr/), pdf.js (vendor/): сначала кеш;
 //   — ИИ и вход Pollinations — мимо кеша: ключ не должен попасть в кеш.
 //
 // Свои кеши — с префиксом «doc-»: кеши сайта проверки (sozykin-…) не трогаем.
 
-const CACHE = 'doc-v1';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+const CACHE = 'doc-v2';
+const SHELL = ['./', './index.html', './app.js', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 // Модуль распознавания (~11 МБ) кешируется при первом распознавании, а не при установке
-const CACHEABLE_HOSTS = ['cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
+
 
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
@@ -32,8 +33,8 @@ self.addEventListener('fetch', event => {
   if(request.method !== 'GET') return;
   const url = new URL(request.url);
   const sameOrigin = url.origin === self.location.origin;
-  if(!sameOrigin && !CACHEABLE_HOSTS.includes(url.hostname)) return;
-  const isPage = request.mode === 'navigate' || (sameOrigin && url.pathname.endsWith('.html'));
+  if(!sameOrigin) return;                       // ИИ, справочник индексов — мимо кеша
+  const isPage = request.mode === 'navigate' || /\.html$|\/app\.js$/.test(url.pathname);
   event.respondWith(isPage ? networkFirst(request) : cacheFirst(request));
 });
 
