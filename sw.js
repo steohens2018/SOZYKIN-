@@ -11,7 +11,7 @@
 //   — запросы к базам источников и ИИ-провайдерам не трогаем вовсе:
 //     результаты поиска должны быть свежими, а API-ключ не должен попасть в кеш.
 
-const CACHE = 'sozykin-v10';
+const CACHE = 'sozykin-v11';
 
 const SHELL = [
   './', './index.html', './app.html', './accuracy.html', './site.css',
@@ -38,7 +38,8 @@ self.addEventListener('install', event => {
 
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
-    for(const key of await caches.keys()) if(key !== CACHE) await caches.delete(key);
+    // Только свои кеши: у приложения «Документы» (doc/) — собственные, с префиксом doc-
+    for(const key of await caches.keys()) if(key.startsWith('sozykin-') && key !== CACHE) await caches.delete(key);
     await self.clients.claim();
   })());
 });
@@ -49,6 +50,7 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
   const sameOrigin = url.origin === self.location.origin;
   if(!sameOrigin && !CACHEABLE_HOSTS.includes(url.hostname)) return;   // базы, API — мимо кеша
+  if(sameOrigin && url.pathname.includes('/doc/')) return;              // у «Документов» свой воркер
 
   const isPage = request.mode === 'navigate' || (sameOrigin && url.pathname.endsWith('.html'));
   event.respondWith(isPage ? networkFirst(request) : cacheFirst(request));

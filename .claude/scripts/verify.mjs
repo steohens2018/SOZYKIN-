@@ -46,6 +46,15 @@ if (!listed.length) {
     try { new vm.Script(readFileSync('sw.js', 'utf8'), { filename: 'sw.js' }); console.log('sw.js:     синтаксис в порядке'); }
     catch (e) { failed = true; console.error(`SYNTAX  sw.js: ${e.message}`); }
   }
+  // Приложение «Документы»: скрипт и воркер — отдельные файлы
+  for (const js of ['doc/app.js', 'doc/sw.js']) {
+    if (!existsSync(js)) continue;
+    try { new vm.Script(readFileSync(js, 'utf8'), { filename: js }); console.log(`${js}: синтаксис в порядке`); }
+    catch (e) { failed = true; console.error(`SYNTAX  ${js}: ${e.message}`); }
+  }
+  if (existsSync('doc/manifest.webmanifest')) {
+    try { JSON.parse(readFileSync('doc/manifest.webmanifest', 'utf8')); } catch (e) { failed = true; console.error(`SYNTAX  doc/manifest.webmanifest: ${e.message}`); }
+  }
   if (existsSync('manifest.webmanifest')) {
     try { JSON.parse(readFileSync('manifest.webmanifest', 'utf8')); console.log('Манифест:  JSON в порядке'); }
     catch (e) { failed = true; console.error(`SYNTAX  manifest.webmanifest: ${e.message}`); }
