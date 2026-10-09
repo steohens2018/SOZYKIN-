@@ -142,6 +142,8 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),li
 }
 #printArea{display:none}
 @media(max-width:400px){.nav a{padding:8px 6px;font-size:12.5px}.brand{gap:9px}.lg{width:32px;height:32px;font-size:17px}.bs{letter-spacing:.2em}}
+/* На узком экране в шапке — только значок, чтобы поместились три пункта меню */
+@media(max-width:440px){.brand>div:last-child{display:none}}
 @media(max-width:350px){.bn{font-size:15px}.nav a{padding:8px 4px}}
 </style>
 </head>
@@ -151,6 +153,7 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),li
   <a class="brand" href="#list"><div class="lg">Д</div><div><div class="bn">Документы</div><div class="bs">по образцу</div></div></a>
   <nav class="nav">
     <a href="#list" data-r="list">Материалы</a>
+    <a href="#laws" data-r="laws">Нормы</a>
     <a href="#settings" data-r="settings">Настройки</a>
   </nav>
 </header>
@@ -158,7 +161,7 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),li
 <main class="wrap" id="app"></main>
 <div class="toasts" id="toasts"></div>
 <div id="printArea"></div>
-<input type="file" id="importFile" accept=".docx,.pdf,.txt,image/*" multiple style="display:none">
+<input type="file" id="importFile" accept=".doc,.docx,.pdf,.txt,image/*" multiple style="display:none">
 <input type="file" id="photoFile" accept="image/*" multiple style="display:none">
 
 <script src="app.js"></script>

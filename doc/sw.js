@@ -8,7 +8,7 @@
 //
 // Свои кеши — с префиксом «doc-»: кеши сайта проверки (sozykin-…) не трогаем.
 
-const CACHE = 'doc-v2';
+const CACHE = 'doc-v5';
 const SHELL = ['./', './index.html', './app.js', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 // Модуль распознавания (~11 МБ) кешируется при первом распознавании, а не при установке
 
